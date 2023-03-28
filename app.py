@@ -19,12 +19,12 @@ def explanation():
 @app.route("/twoLinks/", methods=['POST', 'GET'])
 def twoLinks():
     if request.method == 'POST':
-        oldDoc = request.form['old']
-        newDoc = request.form['new']
+        old_doc = request.form['old']
+        new_doc = request.form['new']
         ok = request.form['checkbox']
         failure = "none"
 
-        if oldDoc == "" or newDoc == "":
+        if old_doc == "" or new_doc == "":
             failure = "one or both of the links were empty" #TODO oneLink?
             return render_template("error.html", failure)
         if ok:
