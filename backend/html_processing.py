@@ -1,23 +1,43 @@
 import datetime
 import difflib
-import urllib3
+import urllib3 # 20 seconds for both reach files
+import requests # 10 seconds for both reach files
 from bs4 import BeautifulSoup
+import re
 
 def pars_html(url):
     """
     param: a URL in either HTTP format or a local file-path.
     return: a Beautiful Soup parsed HTML document.
-    function: via urllib3 a pool manager is started and the URL is opened and the file is fetched. If no URL is entered, the local file is opened and read.
+    function: the URL is opened and the file is fetched. IN the first attempt via the request lib, in case of an error via the slower urllib. If no URL is entered, the local file is opened and read.
     """
-    http = urllib3.PoolManager()
-
     print(url)
-    # Fetch the html file via URL
+    html_doc = "null"
     if url.startswith('http'):
-        response = http.urlopen('GET',url)
-        html_doc = response.data
-    else: # local tests
-        html_doc = open(url).read()
+        # Fetch the html file via URL
+        try: # the faster way
+            response = requests.get(url)
+            response.raise_for_status()
+            html_doc = response.text
+        except Exception as e:
+            print(f"ERROR (after opening the url): Exception {e} was thrown. Now another attempt will be made!")
+            print(e.__traceback__)
+            try: # a slower todo obsolete?
+                http = urllib3.PoolManager()
+                response = http.urlopen('GET', url)
+                html_doc = response.data
+            except Exception as e2:
+                print(f"ERROR (after opening the url again): Exception {e2} was thrown. The program ends here!")
+                print(e2.__traceback__)
+        finally:
+            if html_doc == "null":
+                print(f"ERROR (after both url attempts): The URL {url} could to be corrupted!")
+    else:  # local tests
+        try:
+            html_doc = open(url).read()
+        except Exception as e:
+            print(f"ERROR (after parsing local test): Exception {e} was thrown. The URL {url} could to be corrupted!")
+            print(e.__traceback__)
 
     # Parse and format the html file using bs4
     parsed_doc = BeautifulSoup(html_doc, 'html.parser')
@@ -50,9 +70,14 @@ def make_pointer_list(lines: list):
     pointers = []
     count = 0
     for line in lines:
-        if line.startswith("Article") or line.startswith("ANNEX") or line.startswith("Appendix"):
+        #if line.startswith("Article") or line.startswith("ANNEX") or line.startswith("Appendix"):
+        if re.match("Article\s\d+$", line) or re.match("ANNEX\s[IVXLCD]+$", line) or re.match("Appendix\s\d+$", line):
             pointers.append(count)
         count += 1
+    # General safety test:
+    if len(pointers) <= 0:
+        print(f"FAIL (after making pointer list): No pointers in {lines}!")
+
     return pointers
 
 def find_surrounding_pointers(pointers: list, position: int):
@@ -91,7 +116,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     """
     param: two Beautiful Soup parsed html documents, one is called "MAIN" which is the newer version of the legal act and the old one for comparison.
     return: a [x,y] set of two lists: the first (x) is a list of diffs of text passages between old and new/main containing changes and the second (y) is a list of only the change-texts just for testing and trying.
-    function: #TODO 4 steps
+    function: #ToDo 4 steps
     """
     # Old file
     lines_old = parsed_doc_old.text.splitlines() #ToDo check for wrong param order (new vs old)!
@@ -112,6 +137,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
             arrows_main.append(l_m[1:]) # without the arrows
             arrows_position_main.append(count)
         count += 1
+    # General safety test: todo
 
     "Step 1.2: Check if the old file also has already been changed and if yes find the changes via the marking arrows as above. The found arrows can be subtracted from the main list. Even if the changes are not the same in the version, later changes will have own arrows, thus every variation will be found."
     old_is_basis = 'Amended by:' not in lines_old and 'Corrected by:' not in lines_old # alternatively html class 'hd-modifiers'
@@ -128,8 +154,13 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
             arrows_main.remove(a)
 
     "Step 1.3: Now finding the real changed text by only looking at the changes (not the base text) and collecting texts and positions in lists. The texts are NOT being used later on, just for control and debugging purposes."
+    "Result"
     changes_main = [] # will contain the bare minimum of changes: from change-arrow to the next arrow! {Problems: (1) those texts have no context and (2) some arrows are placed inside sentences for little changes, where no additional arrow follows}
-    positions_main = [] # positions of those changes; only the changes, not the base text which is also in the arrow list (indicis align)
+    change_positions_main = [] # positions of those changes; only the changes, not the base text which is also in the arrow list (indicis align)
+    "Result"  # ToDo Fixate?
+    change_name = [] # the "names"/indicators of changes
+    "Result"
+    positions_main = [] # positions of those changes by the last pointer before the change to find in which Article, Annax or Appendix the change is
     if len(arrows_main) != len(arrows_position_main):
         print(f"ERROR (after finding arrows_main): The amount of arrow-names {len(arrows_main)} and arrow-positions {len(arrows_position_main)} are not the same, thus the indicis will not align!")
     else:
@@ -141,8 +172,9 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
                 count += 1
                 continue
             else:
+                change_name.append(arrows_main[count])
                 # A, M or C Text: Amendment or Corrigendum which will be processed.
-                positions_main.append(arrows_position_main[count])
+                change_positions_main.append(arrows_position_main[count])
                 area_of_change = []
                 pos = arrows_position_main[count]
                 if count > list_len - 2: # if there is no further arrow, continue to the end of the document
@@ -154,27 +186,19 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
                         area_of_change.append(lines_main[pos])
                         pos += 1
                 # concat the lines to a single string
-                changes_main.append("".join(area_of_change))
+                changes_main.append(" ".join(area_of_change))
             count += 1
-            #ToDo use this classification?:
-            '''    
-            if arrows_new[count].startswith('M'):
-                # amendment
-            elif arrows_new[count].startswith('A'):
-                # amendment
-            elif arrows_new[count].startswith('C'):
-                # corrigendum
-            else:
-                # Fail or edge case
-            '''
-    if len(changes_main) != len(positions_main):
-        print(f"ERROR (after finding changes_main): The amount of change-texts {len(changes_main)} and change-arrow-positions {len(positions_main)} are not the same, thus the indicis will not align!")
+    # General safety test:
+    if len(changes_main) != len(change_positions_main):
+        print(f"FAIL (after finding changes_main): The amount of change-texts {len(changes_main)} and change-arrow-positions {len(change_positions_main)} are not the same, thus the indicis will not align!")
 
     "Step 2: Find the pointers surrounding the change and the corresponding in the old version"
     # Find the surrounding pointers for every change-position
-    text_areas_start_end_main = []  # consists of [from,to] sets
-    for p in positions_main:
-        text_areas_start_end_main.append(find_surrounding_pointers(pointers_main, p))
+    text_areas_start_end_main_with_duplicates = []  # consists of [from,to] sets
+    for p in change_positions_main:
+        surr_pointers_main = find_surrounding_pointers(pointers_main, p)
+        text_areas_start_end_main_with_duplicates.append(surr_pointers_main)
+        positions_main.append(lines_main[surr_pointers_main[0]]) # only the from pointer
 
     def find_old_pointer(corresponding_main_pointer: int):
         """
@@ -202,7 +226,13 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
             # return if no pointer fits ToDo is that true?
             return -1
 
-    "Step 2.1: Find the old pointers matching to the main ones. If there is no old pointer fitting the main pointer (which is very possible), a new main pointer has to be found, so the text-passages stay comparable."
+    "Step 2.1: Remove duplicates from text_areas_start_end_main, because for the diff, every text passage can be processed once, not multiple times"
+    text_areas_start_end_main = []
+    for ta in text_areas_start_end_main_with_duplicates:
+        if ta not in text_areas_start_end_main:
+            text_areas_start_end_main.append(ta)
+
+    "Step 2.2: Find the old pointers matching to the main ones. If there is no old pointer fitting the main pointer (which is very possible), a new main pointer has to be found, so the text-passages stay comparable."
     text_areas_start_end_old = []
     texts_main = []  # the string of the text between the [from, to] in text_areas_start_end_main (for step 3)
     texts_old = []
@@ -231,7 +261,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
                 ta_old[1] = lines_end_old
                 break
 
-        "Step 2.2: Check the found old pointers to some criteria"
+        "Step 2.3: Check the found old pointers to some criteria"
         if lines_main[ta_main[0]] == lines_old[ta_old[0]] and lines_main[ta_main[1]] == lines_old[ta_old[1]]: # main and old are matching => add
             text_areas_start_end_old.append(ta_old)
         elif ta_old[1] == lines_end_old: # might not match, but it goes up to the end of the old document => add
@@ -242,50 +272,47 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
             print(f"FAIL (after text_area checks): Final tests failed with {ta_old} for main {ta_main} WHERE main says '{lines_main[ta_main[0]]}' and '{lines_main[ta_main[1]]}' while old says '{lines_old[ta_old[0]]}' and '{lines_old[ta_old[1]]}'. ")
 
         "Step 3: Concat the lines in the area between Start and End pointers to one complete single string for each document."
-        tx_tmp = []
+        tmp_list = [] # temporary list
         pos = ta_main[0]
         while pos < ta_main[1]:
-            tx_tmp.append(lines_main[pos])
+            tmp_list.append(lines_main[pos])
             pos += 1
-        texts_main.append("".join(tx_tmp))
+        texts_main.append(" ".join(tmp_list))
         #Todo Repetition!
-        tx_tmp = []
+        tmp_list = []
         pos = ta_old[0]
         while pos < ta_old[1]:
-            tx_tmp.append(lines_old[pos])
+            tmp_list.append(lines_old[pos])
             pos += 1
-        texts_old.append("".join(tx_tmp))
+        texts_old.append(" ".join(tmp_list))
     # General safety test:
     if len(texts_old) != len(texts_main) or len(texts_main) != len(text_areas_start_end_main) or len(text_areas_start_end_main) != len(text_areas_start_end_old):
         print(f"FAIL (after text concat): Amounts of text areas and texts are different: {len(texts_main)} : {len(text_areas_start_end_main)} : {len(texts_old)} : {len(text_areas_start_end_old)}")
 
     "Step 4: Make for every pair of (old and main) text a diff via difflib for the return."
+    "Result"
     diffs = []
     for t in texts_main:
         t_o = texts_old[texts_main.index(t)]
         diffs.append(list(difflib.unified_diff(t_o.splitlines(), t.splitlines())))
+    # General safety test: todo
 
-    #TODO [0,n] changes aussortieren und doppelte Bereiche aussortieren!
+    #TODO [0,n] changes aussortieren und doppelte Bereiche aussortieren! M/C indentifiers out
 
     "Debugging Console Print Out"
     print("-----------------------")
     print(f"The main pointers have {len(pointers_main)} entries, the old have {len(pointers_old)}. There are {len(pointers_main)-len(pointers_old)} more pointers!")
     print(f"The main text parts have {len(texts_main)} entries, the old have {len(texts_old)}. The difference is {abs(len(texts_main)-len(texts_old))}.")
-    print(f"The main text areas have {len(text_areas_start_end_main)} entries, the old have {len(text_areas_start_end_old)}. The difference is {abs(len(text_areas_start_end_main)-len(text_areas_start_end_old))}.")
-    print(f"arrows_main:{arrows_main}; Len: {len(arrows_main)}")
-    #print(f"changes_main:{changes_main}; Len: {len(changes_main)}")
-    #print(f"positions_main:{positions_main}; Len: {len(positions_main)}")
+    #print(f"arrows_main:{arrows_main}; Len: {len(arrows_main)}")
+    #print(f"change_positions_main:{change_positions_main}; Len: {len(change_positions_main)}")
     #print(f"texts_main:{texts_main}; Len: {len(texts_main)}")
+    #print(f"changes_main:{changes_main}; Len: {len(changes_main)}")
+    #print(len(change_name))
+    #print(len(changes_main))
+    #print(len(positions_main))
     print("-----------------------")
-    return [diffs, changes_main]
+    return [change_name, changes_main, positions_main, diffs] # [change_name, change_content, change_position, diffs]
 
-def function():
-    """
-    param:
-    return:
-    function:
-    """
-    pass
 
 ### Debugging:
 # Big file:
@@ -296,22 +323,20 @@ reach_url_old = 'https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:
 # Small file:
 # URL to online html file (32019R0817)
 url_first = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32019R0817&from=DE"
-url_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0817-20190522&from=DE"
-url_latest = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX%3A02019R0817-20210803&from=DE"
+url_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0817-20190522&from=DE" # C: 1 M: 0
+url_latest = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX%3A02019R0817-20210803&from=DE" # C: 1 M: 1
 # Path to local html file (32019R0817)
 file_first = "/Users/jacobfehn/Documents/Uni/7. Semester/Thesis/Webservice/backend/test_daten/CELEX32019R0817_EN_TXT.html"
-file_middle = "/Users/jacobfehn/Documents/Uni/7. Semester/Thesis/Webservice/backend/test_daten/CELEX02019R0817-20190522_EN_TXT.html"
-file_latest = "/Users/jacobfehn/Documents/Uni/7. Semester/Thesis/Webservice/backend/test_daten/CELEX02019R0817-20210803_EN_TXT.html"
+file_middle = "/Users/jacobfehn/Documents/Uni/7. Semester/Thesis/Webservice/backend/test_daten/CELEX02019R0817-20190522_EN_TXT.html" # C: 1 M: 0
+file_latest = "/Users/jacobfehn/Documents/Uni/7. Semester/Thesis/Webservice/backend/test_daten/CELEX02019R0817-20210803_EN_TXT.html" # C: 1 M: 1
 # Some Test File
-t_old = pars_html("https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D0076")
-t_middle = pars_html("https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510") # M: 2
-t_new = pars_html("https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811") # M: 2 + 6
+t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D0076"
+t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
+t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811" # M: 2 + 6
 
 
-example_content_l = pars_html(file_latest) # C: 1 M: 1
-example_content_m = pars_html(file_middle) # C: 1 M: 0
-example_content_f = pars_html(file_first)
 
+### Debuggin FILES texting:
 '''
 find_changes_and_make_diff_of_surrounding_text(example_content_f, example_content_m)
 print("SHOULD FIND C1")
@@ -321,11 +346,42 @@ find_changes_and_make_diff_of_surrounding_text(example_content_f, example_conten
 print("SHOULD FIND C1 and M1")
 find_changes_and_make_diff_of_surrounding_text(pars_html(reach_url_old), pars_html(reach_url_new))
 print("SHOULD FIND a million things lol")
-find_changes_and_make_diff_of_surrounding_text(t_old, t_middle)
+find_changes_and_make_diff_of_surrounding_text(pars_html(t_old), pars_html(t_middle))
 print("SHOULD FIND M1 with 2 instances")
-find_changes_and_make_diff_of_surrounding_text(t_middle, t_new)
+find_changes_and_make_diff_of_surrounding_text(pars_html(t_middle), pars_html(t_new))
 print("SHOULD FIND M2 with 6 instances")
-find_changes_and_make_diff_of_surrounding_text(t_old, t_new)
+find_changes_and_make_diff_of_surrounding_text(pars_html(t_old), pars_html(t_new))
 print("SHOULD FIND M1 and M2 with 2 and 6 instances")
 '''
-# ToDo: <hr class="separator"/> um die Gliederung raus zu kriegen.
+
+### Time testing
+'''
+c = 0
+while c < 5:
+
+    anfang = datetime.datetime.now()
+    print(anfang)
+
+    ## Separate: (REACH) 08.529213, 08.503610, 07.790659 // 07.736736, 08.013454, 07.601664, 09.949427, 07.740778 :: extracts additional information
+    eins = pars_html(reach_url_old)
+    zwei = pars_html(reach_url_new)
+    find_changes_and_make_diff_of_surrounding_text(eins, zwei)
+
+    mitte = datetime.datetime.now()
+    print(mitte)
+
+    ## All at once: (REACH) 09.635288, 08.890149, 09.370657 // 08.827065, 09.026564, 08.808975, 08.982896, 09.387952 :: a bit slower
+    list(difflib.unified_diff(pars_html(reach_url_old).text.splitlines(), pars_html(reach_url_new).text.splitlines()))
+
+    ende = datetime.datetime.now()
+    print(ende)
+    print("-----------------------")
+    print(f"The Separate duration is {mitte - anfang}!")
+    print(f"The AllAtOnce duration is {ende - mitte}!")
+
+    c += 1
+'''
+
+def all_in(url_old, url_new):
+    """Makes everything at once!"""
+    return find_changes_and_make_diff_of_surrounding_text(pars_html(url_old), pars_html(url_new))
