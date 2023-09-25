@@ -30,7 +30,8 @@ def twoLinks():
             return render_template("error.html", failure)
         if ok:
             "success"
-            return render_template("twoLinks.html")
+            result = run.process_html(old_doc, new_doc) #ToDo
+            return render_template("twoLinks.html", result)
         else:
             failure = "checkbox for Standard-search was not ticked"
             return render_template("error.html", failure)

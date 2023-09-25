@@ -226,13 +226,13 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
             # return if no pointer fits ToDo is that true?
             return -1
 
-    "Step 2.1: Remove duplicates from text_areas_start_end_main, because for the diff, every text passage can be processed once, not multiple times"
+    "Step 2.2: Remove duplicates from text_areas_start_end_main, because for the diff, every text passage can be processed once, not multiple times"
     text_areas_start_end_main = []
     for ta in text_areas_start_end_main_with_duplicates:
         if ta not in text_areas_start_end_main:
             text_areas_start_end_main.append(ta)
 
-    "Step 2.2: Find the old pointers matching to the main ones. If there is no old pointer fitting the main pointer (which is very possible), a new main pointer has to be found, so the text-passages stay comparable."
+    "Step 2.3: Find the old pointers matching to the main ones. If there is no old pointer fitting the main pointer (which is very possible), a new main pointer has to be found, so the text-passages stay comparable."
     text_areas_start_end_old = []
     texts_main = []  # the string of the text between the [from, to] in text_areas_start_end_main (for step 3)
     texts_old = []
@@ -261,7 +261,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
                 ta_old[1] = lines_end_old
                 break
 
-        "Step 2.3: Check the found old pointers to some criteria"
+        "Step 2.4: Check the found old pointers to some criteria"
         if lines_main[ta_main[0]] == lines_old[ta_old[0]] and lines_main[ta_main[1]] == lines_old[ta_old[1]]: # main and old are matching => add
             text_areas_start_end_old.append(ta_old)
         elif ta_old[1] == lines_end_old: # might not match, but it goes up to the end of the old document => add
@@ -277,6 +277,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         while pos < ta_main[1]:
             tmp_list.append(lines_main[pos])
             pos += 1
+        #texts_main = tmp_list
         texts_main.append(" ".join(tmp_list))
         #Todo Repetition!
         tmp_list = []
@@ -284,8 +285,9 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         while pos < ta_old[1]:
             tmp_list.append(lines_old[pos])
             pos += 1
+        #texts_old = tmp_list
         texts_old.append(" ".join(tmp_list))
-    # General safety test:
+    # General safety test: todo fails
     if len(texts_old) != len(texts_main) or len(texts_main) != len(text_areas_start_end_main) or len(text_areas_start_end_main) != len(text_areas_start_end_old):
         print(f"FAIL (after text concat): Amounts of text areas and texts are different: {len(texts_main)} : {len(text_areas_start_end_main)} : {len(texts_old)} : {len(text_areas_start_end_old)}")
 
@@ -294,24 +296,54 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     diffs = []
     for t in texts_main:
         t_o = texts_old[texts_main.index(t)]
-        diffs.append(list(difflib.unified_diff(t_o.splitlines(), t.splitlines())))
-    # General safety test: todo
+        diffs.append(list(difflib.unified_diff(t_o.splitlines(), t.splitlines()))) # todo something wrong here?
 
+    "Step 4.2: " #Todo
+    '''
+    added = []
+    removed = []
+    same = []
+    for diff in diffs:
+        if "--- \n" in diff and "+++ \n" in diff:
+            #print("Diff with " + diff[2])
+            pass
+        for change in diff[3:]:
+            if change.startswith("-"):
+                #print("REMOVED: " + change[1:])
+                removed.append(change[1:])
+            elif change.startswith("+"):
+                #print("ADDED: " + change[1:])
+                added.append(change[1:])
+            else:
+                print("WHAT?" + change) # todo error?
+
+    found = []
+    for a in added:
+        for r in removed:
+            if a in r and a not in same:
+                same.append(r)
+                found.append(a)
+            elif r in a and r not in same:
+                same.append(r)
+                found.append(a)
+    added = [a for a in added if a not in found]
+    # TODO a or r in same?
+    tmp_list = []
+    for r in removed:
+        if r not in same:
+            tmp_list.append(r)
+    removed = tmp_list
+    diffs = [added, removed, same]
+    # General safety test: todo
+'''
     #TODO [0,n] changes aussortieren und doppelte Bereiche aussortieren! M/C indentifiers out
 
     "Debugging Console Print Out"
     print("-----------------------")
     print(f"The main pointers have {len(pointers_main)} entries, the old have {len(pointers_old)}. There are {len(pointers_main)-len(pointers_old)} more pointers!")
-    print(f"The main text parts have {len(texts_main)} entries, the old have {len(texts_old)}. The difference is {abs(len(texts_main)-len(texts_old))}.")
-    #print(f"arrows_main:{arrows_main}; Len: {len(arrows_main)}")
-    #print(f"change_positions_main:{change_positions_main}; Len: {len(change_positions_main)}")
-    #print(f"texts_main:{texts_main}; Len: {len(texts_main)}")
-    #print(f"changes_main:{changes_main}; Len: {len(changes_main)}")
-    #print(len(change_name))
-    #print(len(changes_main))
-    #print(len(positions_main))
+    print(f"change_name:{change_name}; Len: {len(change_name)}")
     print("-----------------------")
-    return [change_name, changes_main, positions_main, diffs] # [change_name, change_content, change_position, diffs]
+    return [change_name, changes_main, positions_main, diffs] # [change_name, change_content, change_position, diffs[added, removed, same]
 
 
 ### Debugging:
@@ -334,7 +366,8 @@ t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D00
 t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
 t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811" # M: 2 + 6
 
-
+#find_changes_and_make_diff_of_surrounding_text(pars_html(file_first), pars_html(file_latest))
+#find_changes_and_make_diff_of_surrounding_text(pars_html(t_old), pars_html(t_middle))
 
 ### Debuggin FILES texting:
 '''

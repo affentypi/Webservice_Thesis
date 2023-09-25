@@ -23,9 +23,8 @@ t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D00
 t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
 t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811" # M: 2 + 6
 
-result = html.all_in(file_first, file_latest)
 
-def function():
+def function(html_processing_result: list[4]):
     """
     param:
     return:
@@ -33,20 +32,67 @@ def function():
     """
     pass
 
-def process_diff(html_processing_result: list[4]):
+def process_html(url_old, url_new):
+    """
+    param:
+    return:
+    function:
+    """
+    # ToDo what else?
+    return html.all_in(url_old, url_new)
+
+def process_changes(html_processing_result: list[4]): # # [change_name, change_content, change_position, diffs[added, removed, same]]
+    """
+    param:
+    return:
+    function:
+    """
+    change_name = html_processing_result[0]
+    change_content = html_processing_result[1]
+    change_position = html_processing_result[2]
     diffs = html_processing_result[3]
+    added = []
+    removed = []
     for diff in diffs:
         if "--- \n" in diff and "+++ \n" in diff:
-            print("In Diff with " + diff[2] + "Changes:")
+            #print("Diff with " + diff[2]) #ToDo Footnotes that are shifted
+            pass
         for change in diff[3:]:
             if change.startswith("-"):
-                print("REMOVED: " + change[1:])
-                nlp.text_processing_and_rendering(change[1:], "removed")
+                #print("REMOVED: " + change[1:])
+                removed.append(change[1:])
             elif change.startswith("+"):
-                print("ADDED: " + change[1:])
-                nlp.text_processing_and_rendering(change[1:], "added")
+                #print("ADDED: " + change[1:])
+                added.append(change[1:])
             else:
-                print("WHAT?" + change)
+                print("WHAT?" + change)  # todo error?
+    # ▼ ►
+    count = 0
+    while count < len(change_name) and count < len(change_content) and count < len(change_position): # General safety test
+        name = change_name[count]
+        content = change_content[count]
+        position = change_position[count]
+        print("--------------------------------------------")
+        print(name)
+        print(content)
+        print(position)
+        if position == "":
+            print("Tabel of content")
+        else:
+            for a in added:
+                if ("▼" + name in a or "►" + name in a) and "Amended by:" not in a and "Corrected by:" not in a :
+                    r = removed[added.index(a)]
+                    print("ADDED: " + a)
+                    print("REMOVED: " + r)
+
+            nlp.text_processing_and_rendering(content, name)
+
+        # TODO more analysis and comparison to old
+
+        print("--------------------------------------------")
+        count += 1
+    
     return
 
-process_diff(result)
+result = html.all_in(file_first, file_latest)
+process_changes(result)
