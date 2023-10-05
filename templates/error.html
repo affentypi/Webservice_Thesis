@@ -4,13 +4,10 @@
 {% endblock %}
 {% block content %}
     <p>Hi.</p>
-    <a>The query failed because {{ failure }}.</a>
+    <a>The query failed because ...</a>
     <div class="card">
         <div class="card-body">
-            <div class="text-black-50"> Grey Text</div>
-            <b>Big Text</b>
-            <br>
-            <s>Strike Text</s>
+            <div class="text-black-50">{{ exception }}</div>
         </div>
     </div>
 

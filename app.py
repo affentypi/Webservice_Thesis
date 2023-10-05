@@ -1,6 +1,7 @@
-import re
 from datetime import datetime
-import run_backend as run
+
+import html_processing as html
+import nlp_processing as run
 
 from flask import *
 
@@ -20,21 +21,17 @@ def explanation():
 @app.route("/twoLinks/", methods=['POST', 'GET'])
 def twoLinks():
     if request.method == 'POST':
-        old_doc = request.form['old']
-        new_doc = request.form['new']
-        ok = request.form['checkbox']
-        failure = "none"
-
-        if old_doc == "" or new_doc == "":
-            failure = "one or both of the links were empty" #TODO oneLink?
-            return render_template("error.html", failure)
-        if ok:
-            "success"
-            result = run.process_html(old_doc, new_doc) #ToDo
-            return render_template("twoLinks.html", result)
-        else:
-            failure = "checkbox for Standard-search was not ticked"
-            return render_template("error.html", failure)
+        try:
+            old_doc = request.form['old']
+            new_doc = request.form['new']
+            radio = request.form['btnradio']
+            print(radio) #ToDo Just on?
+            #checkbox = request.form['checkbox']
+        except Exception as e:
+            return render_template("error.html", exception= e)
+        #run  todo
+        run.process_changes(html.all_in(old_doc, new_doc))
+        return render_template("run.html")
     else:  # HTTP GET
         return render_template("twoLinks.html")
 
@@ -48,13 +45,13 @@ def oneLink():
 
         if doc == "":
             failure = "no link entered"
-            return render_template("error.html", failure)
+            return render_template("error.html", exception= failure)
         if ok:
             "success"
             return render_template("oneLink.html")
         else:
             failure = "checkbox for OneLink-search was not ticked"
-            return render_template("error.html", failure)
+            return render_template("error.html", exception= failure)
     else:  # HTTP GET
         return render_template("oneLink.html")
 
@@ -68,13 +65,13 @@ def celex():
 
         if doc == "":
             failure = "no CELEX Number was entered"
-            return render_template("error.html", failure)
+            return render_template("error.html", exception= failure)
         if ok:
             "success"
             return render_template("celex.html")
         else:
             failure = "checkbox for CELEX-search was not ticked"
-            return render_template("error.html", failure)
+            return render_template("error.html", exception= failure)
     else:  # HTTP GET
         return render_template("celex.html")
 

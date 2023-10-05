@@ -277,7 +277,6 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         while pos < ta_main[1]:
             tmp_list.append(lines_main[pos])
             pos += 1
-        #texts_main = tmp_list
         texts_main.append(" ".join(tmp_list))
         #Todo Repetition!
         tmp_list = []
@@ -285,7 +284,6 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         while pos < ta_old[1]:
             tmp_list.append(lines_old[pos])
             pos += 1
-        #texts_old = tmp_list
         texts_old.append(" ".join(tmp_list))
     # General safety test: todo fails
     if len(texts_old) != len(texts_main) or len(texts_main) != len(text_areas_start_end_main) or len(text_areas_start_end_main) != len(text_areas_start_end_old):
@@ -298,45 +296,6 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         t_o = texts_old[texts_main.index(t)]
         diffs.append(list(difflib.unified_diff(t_o.splitlines(), t.splitlines()))) # todo something wrong here?
 
-    "Step 4.2: " #Todo
-    '''
-    added = []
-    removed = []
-    same = []
-    for diff in diffs:
-        if "--- \n" in diff and "+++ \n" in diff:
-            #print("Diff with " + diff[2])
-            pass
-        for change in diff[3:]:
-            if change.startswith("-"):
-                #print("REMOVED: " + change[1:])
-                removed.append(change[1:])
-            elif change.startswith("+"):
-                #print("ADDED: " + change[1:])
-                added.append(change[1:])
-            else:
-                print("WHAT?" + change) # todo error?
-
-    found = []
-    for a in added:
-        for r in removed:
-            if a in r and a not in same:
-                same.append(r)
-                found.append(a)
-            elif r in a and r not in same:
-                same.append(r)
-                found.append(a)
-    added = [a for a in added if a not in found]
-    # TODO a or r in same?
-    tmp_list = []
-    for r in removed:
-        if r not in same:
-            tmp_list.append(r)
-    removed = tmp_list
-    diffs = [added, removed, same]
-    # General safety test: todo
-'''
-    #TODO [0,n] changes aussortieren und doppelte Bereiche aussortieren! M/C indentifiers out
 
     "Debugging Console Print Out"
     print("-----------------------")
@@ -358,9 +317,9 @@ url_first = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:3201
 url_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0817-20190522&from=DE" # C: 1 M: 0
 url_latest = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX%3A02019R0817-20210803&from=DE" # C: 1 M: 1
 # Path to local html file (32019R0817)
-file_first = "/Users/jacobfehn/Documents/Uni/7. Semester/Thesis/Webservice/backend/test_daten/CELEX32019R0817_EN_TXT.html"
-file_middle = "/Users/jacobfehn/Documents/Uni/7. Semester/Thesis/Webservice/backend/test_daten/CELEX02019R0817-20190522_EN_TXT.html" # C: 1 M: 0
-file_latest = "/Users/jacobfehn/Documents/Uni/7. Semester/Thesis/Webservice/backend/test_daten/CELEX02019R0817-20210803_EN_TXT.html" # C: 1 M: 1
+file_first = "/test_data/CELEX32019R0817_EN_TXT.html"
+file_middle = "/test_data/CELEX02019R0817-20190522_EN_TXT.html"  # C: 1 M: 0
+file_latest = "/test_data/CELEX02019R0817-20210803_EN_TXT.html"  # C: 1 M: 1
 # Some Test File
 t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D0076"
 t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
