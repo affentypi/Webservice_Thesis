@@ -25,12 +25,11 @@ def twoLinks():
             old_doc = request.form['old']
             new_doc = request.form['new']
             radio = request.form['btnradio']
-            print(radio) #ToDo Just on?
-            #checkbox = request.form['checkbox']
+            print(radio) #ToDo Just on? acc = false, fast is true
         except Exception as e:
             return render_template("error.html", exception= e)
         #run  todo
-        run.process_changes(html.all_in(old_doc, new_doc))
+        run.process_changes(html.all_in(old_doc, new_doc), radio == "fast")
         return render_template("run.html")
     else:  # HTTP GET
         return render_template("twoLinks.html")

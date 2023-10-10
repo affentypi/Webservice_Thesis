@@ -1,9 +1,9 @@
 import re
 from pathlib import Path
-
 import spacy
 from spacy import displacy
 from spacy.tokens import Span
+import spacy_universal_sentence_encoder
 
 import html_processing
 
@@ -30,14 +30,6 @@ t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D00
 test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02013R0347-20220428" # M: 0 + 0 + 0 + 1 + 1 + 0 + 1
 
 
-def function(html_processing_result: list[4]):
-    """
-    param:
-    return:
-    function:
-    """
-    pass
-
 def text_strip(text: str):
     """
     param:
@@ -60,7 +52,7 @@ def add_labels(param_doc: spacy.tokens.doc.Doc): # More Entities todo
     spans = []
     count = 0
     for token in param_doc: # todo it does not work
-        if re.match('\d{4}/\d{2,4}|\d{2,4}/\d{4}|L\s\d{2,4}|(paragraph|point|Article|L)\s[(]*\d+([a-z]+)*[)]*$', token.text):
+        if re.match('\d{4}/\d{2,4}|\d{2,4}/\d{4}|L\s\d{2,4}|paragraph\s\d+', token.text):
             spans.append(Span(param_doc, count, count + 1, label="LAW"))
         if re.match("Corrigendum|CORRIGENDUM|C\d+$|C\s\d+$", token.text):
             spans.append(Span(param_doc, count, count + 1, label="CORRIGENDUM"))
@@ -71,13 +63,98 @@ def add_labels(param_doc: spacy.tokens.doc.Doc): # More Entities todo
         param_doc.set_ents([span], default="unmodified")
     return param_doc
 
-def process_changes(html_processing_result: list[4]): # # [change_name, change_content, change_position, diffs[added, removed, same]]
+def find_old_passage(a, r, content):
     """
     param:
     return:
     function:
     """
-    nlp = spacy.load("en_core_web_sm")  # https://spacy.io/usage/spacy-101 #todo
+    result = ""
+    sentence_encoder = spacy_universal_sentence_encoder.load_model('en_use_lg')
+    doc_c = sentence_encoder(text_strip(content))
+    doc_a = sentence_encoder(a)
+    sent_a = []  # not .text for similarity test
+    doc_r = sentence_encoder(r)
+    sent_r = []  # .teext for concat
+    frame = [0, 0]
+
+    c = 0
+    start = -1
+    end = -1
+    first = True
+    for sent in doc_a.sents:
+        sent_a.append(sent)
+        if "▼" in sent.text or "►" in sent.text or "◄" in sent.text:
+            if first:
+                start = c
+                first = False
+            else:
+                end = c
+        c += 1
+    if start > 0:
+        frame[0] = sent_a[start - 1]
+    elif start == 0:
+        frame[0] = sent_a[start]
+    else: # error
+        print("Error start")
+    if end == -1:
+        frame[1] = sent_a[start + 1]
+    elif end < len(sent_a) - 1:
+        frame[1] = sent_a[end + 1]
+    elif end < len(sent_a):
+        frame[1] = sent_a[end]
+    else: # error
+        print("Error end")
+    c = 0
+    start = -1
+    end = -1
+    found = False
+    finish = False
+    for sent in doc_r.sents:
+        sent_r.append(sent.text)
+        if sent.similarity(doc_c) > 0.7: # updated / corrected
+            print("AN UPDATED/CORRECTION")
+            return sent.text
+        if len(sent) > 2 * len(doc_c): # if the content is a part of a sentence
+            for s in range(len(sent) - len(doc_c)):
+                p = sent[s : s + len(doc_c)]
+                if p.similarity(doc_c) > 0.7:  # updated / corrected
+                    print("AN UPDATED/CORRECTION")
+                    return p.text
+        if sent.similarity(frame[0]) > 0.9 and not found:
+            start = c
+            found = True
+        if sent.similarity(frame[1]) > 0.9 and not finish:
+            end = c
+            finish = True
+        c += 1
+
+    if found:
+        if end < 0:
+            end = len(sent_r) - 1
+        if start < 0:
+            print("START NOT FOUND")
+        if 0 < start < end < len(sent_r) - 2:
+            result = "\n".join(sent_r[start - 1 : end + 1])
+        elif 0 < start < end < len(sent_r):
+            result = "\n".join(sent_r[start : end])
+        else:
+            print("weird error")
+    else:
+        print("Help")
+    return result
+
+def process_changes(html_processing_result: list[4], spacy_model: bool): # # [change_name, change_content, change_position, diffs]
+    """
+    param:
+    return:
+    function:
+    """
+
+    if spacy_model is False:
+        nlp = spacy.load("en_core_web_trf") #todo does not work
+    else:
+        nlp = spacy.load("en_core_web_sm")  # https://spacy.io/usage/spacy-101 #todo
     result = ["""
 {% extends "layout.html" %}
 {% block title %}
@@ -93,24 +170,32 @@ def process_changes(html_processing_result: list[4]): # # [change_name, change_c
     diffs = html_processing_result[3]
     added = []
     removed = []
+    old = ""
     for diff in diffs:
         if "--- \n" in diff and "+++ \n" in diff:
-            #print("Diff with " + diff[2]) #ToDo Footnotes that are shifted
+            print("Diff with " + diff[2]) #ToDo Footnotes that are shifted
             pass
         for change in diff[3:]:
-            if change.startswith("-"):
-                #print("REMOVED: " + change[1:])
+            print(change)
+            '''if change.startswith("-"):
                 removed.append(change[1:])
             elif change.startswith("+"):
-                #print("ADDED: " + change[1:])
                 added.append(change[1:])
             else:
-                print("WHAT?" + change)  # todo error?
-    # ▼ ► TODO ◄
+                print("WHAT?" + change)  # todo error?'''
+    # ▼ ► ◄
     count = 0
     while count < len(change_name) and count < len(change_content) and count < len(change_position): # General safety test
         name = change_name[count]
+        if "\xa0—————" in name: # Deletion
+            name = name.replace("\xa0—————", "")
         content = change_content[count]
+        if "◄" in content: # the end of little addings
+            p = content.find("◄")
+            content = content[:p + 1]
+        elif "\xa0—————" in content:
+            content = content[:content.find("\xa0—————") + 7]
+        c_len = len(content)
         position = change_position[count]
 
         print("--------------------------------------------")
@@ -124,8 +209,14 @@ def process_changes(html_processing_result: list[4]): # # [change_name, change_c
             for a in added:
                 if ("▼" + name in a or "►" + name in a) and "Amended by:" not in a and "Corrected by:" not in a :
                     r = removed[added.index(a)]
-                    print("ADDED: " + a)
-                    print("REMOVED: " + r)
+                    a_pos = a.find(content)
+                    if a[a_pos : a_pos + c_len] != content:
+                        print("ERROR: CONTENT NOT FOUND")
+                    print("NEW: " + a)
+                    print("OLD: " + r)
+
+                    #old = find_old_passage(a, r, content)
+                    #print(old)
 
         doc = nlp(text_strip(content))
         ents = displacy.render(add_labels(doc), style="ent")
@@ -140,23 +231,29 @@ def process_changes(html_processing_result: list[4]): # # [change_name, change_c
       <div class="accordion-body">
         <strong>''' + position + '''</strong> 
         <br>
-        ''' + ents + '''
+        ''' + ents )
+        if position != "Tabel of content":
+            result.append('''
+            <strong> the corresponding old passage: </strong> 
+            <br>
+            ''' + '''<div class="text-black-50">... ''' + old + ''' ...</div>''')
+        result.append('''
       </div>
     </div>
   </div>''')
 
-        # TODO more analysis and comparison to old
-
         print("--------------------------------------------")
+
         count += 1
 
-    output_path = Path("templates/run.html")
     result.append("""
 </div>
 {% endblock %}
     """)
+
+    output_path = Path("templates/run.html")
     output_path.open("w", encoding="utf-8").write("".join(result))
 
     return
 
-#process_changes(html_processing.all_in(file_first, file_latest))
+process_changes(html_processing.all_in(url_first, url_latest), True)

@@ -3,6 +3,7 @@ import difflib
 import urllib3 # 20 seconds for both reach files
 import requests # 10 seconds for both reach files
 from bs4 import BeautifulSoup
+import spacy
 import re
 
 def pars_html(url):
@@ -36,7 +37,7 @@ def pars_html(url):
         try:
             html_doc = open(url).read()
         except Exception as e:
-            print(f"ERROR (after parsing local test): Exception {e} was thrown. The URL {url} could to be corrupted!")
+            print(f"ERROR (after parsing local test): Exception {e} was thrown. The Path {url} could to be corrupted!")
             print(e.__traceback__)
 
     # Parse and format the html file using bs4
@@ -70,15 +71,33 @@ def make_pointer_list(lines: list):
     pointers = []
     count = 0
     for line in lines:
-        #if line.startswith("Article") or line.startswith("ANNEX") or line.startswith("Appendix"):
         if re.match("Article\s\d+$", line) or re.match("ANNEX\s[IVXLCD]+$", line) or re.match("Appendix\s\d+$", line):
             pointers.append(count)
         count += 1
-    # General safety test:
+    # For some old Texts
     if len(pointers) <= 0:
-        print(f"FAIL (after making pointer list): No pointers in {lines}!")
+        nlp = spacy.load("en_core_web_sm")
+        doc = nlp(" ".join(line for line in lines if line != ""))
+        lines = []
+        for sent in doc.sents:
+            if "HAS ADOPTED THIS DECISION:" in sent.text:
+                tmp = sent.text.split(":")
+                lines.append(tmp[0].strip())
+                lines.append(tmp[1].strip())
+            lines.append(sent.text)
+        count = 0
+        start = False
+        for line in lines:
+            if "HAS ADOPTED THIS DECISION:" in line:
+                start = True
+            if (line.startswith("Article") or line.startswith("ANNEX") or line.startswith("Appendix")) and start:
+                pointers.append(count)
+            count += 1
+        # General safety test:
+        if len(pointers) <= 0:
+            print(f"FAIL (after making pointer list): No pointers in {lines}!")
 
-    return pointers
+    return pointers, lines
 
 def find_surrounding_pointers(pointers: list, position: int):
     """
@@ -92,7 +111,7 @@ def find_surrounding_pointers(pointers: list, position: int):
     surrounding_pointers = [0, pointers[len(pointers) - 1]]
     if position > pointers[len(pointers) - 1]:
         print(f"Position {position} is bigger than the last pointer {pointers[len(pointers) - 1]}. UNFIXED PROBLEM!") #TODO
-
+        surrounding_pointers = [pointers[len(pointers) - 1], pointers[len(pointers) - 1]]
     # Binary search from lecture GAD
     while lower_bound <= upper_bound:
         middle = (upper_bound + lower_bound) // 2
@@ -121,19 +140,19 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     # Old file
     lines_old = parsed_doc_old.text.splitlines() #ToDo check for wrong param order (new vs old)!
     lines_end_old = len(lines_old) - 1
-    pointers_old = make_pointer_list(lines_old)
+    pointers_old, lines_old = make_pointer_list(lines_old)
     # Main file (the newer)
     lines_main = parsed_doc_main.text.splitlines()
     lines_end_main = len(lines_main) - 1
-    pointers_main = make_pointer_list(lines_main)
+    pointers_main, lines_main = make_pointer_list(lines_main)
 
-    "Step 1: Find the changes via the marking arrows '►' and '▼'!" #ToDo arrow assumption...
+    "Step 1: Find the changes via the marking arrows '►' and '▼'!"
     arrows_main = [] # list of arrow names
     arrows_position_main = [] # list of arrow position (indicis align)
     count = 0
     for l_m in lines_main:
         #TODO '►' and '▼' are not safe or are they?
-        if "►" in l_m or "▼" in l_m:
+        if "►" in l_m or "▼" in l_m: # Todo ◄
             arrows_main.append(l_m[1:]) # without the arrows
             arrows_position_main.append(count)
         count += 1
@@ -158,7 +177,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     changes_main = [] # will contain the bare minimum of changes: from change-arrow to the next arrow! {Problems: (1) those texts have no context and (2) some arrows are placed inside sentences for little changes, where no additional arrow follows}
     change_positions_main = [] # positions of those changes; only the changes, not the base text which is also in the arrow list (indicis align)
     "Result"  # ToDo Fixate?
-    change_name = [] # the "names"/indicators of changes
+    changes_name = [] # the "names"/indicators of changes
     "Result"
     positions_main = [] # positions of those changes by the last pointer before the change to find in which Article, Annax or Appendix the change is
     if len(arrows_main) != len(arrows_position_main):
@@ -172,7 +191,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
                 count += 1
                 continue
             else:
-                change_name.append(arrows_main[count])
+                changes_name.append(arrows_main[count])
                 # A, M or C Text: Amendment or Corrigendum which will be processed.
                 change_positions_main.append(arrows_position_main[count])
                 area_of_change = []
@@ -277,14 +296,14 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         while pos < ta_main[1]:
             tmp_list.append(lines_main[pos])
             pos += 1
-        texts_main.append(" ".join(tmp_list))
+        texts_main.append("\n".join(tmp_list))
         #Todo Repetition!
         tmp_list = []
         pos = ta_old[0]
         while pos < ta_old[1]:
             tmp_list.append(lines_old[pos])
             pos += 1
-        texts_old.append(" ".join(tmp_list))
+        texts_old.append("\n".join(tmp_list))
     # General safety test: todo fails
     if len(texts_old) != len(texts_main) or len(texts_main) != len(text_areas_start_end_main) or len(text_areas_start_end_main) != len(text_areas_start_end_old):
         print(f"FAIL (after text concat): Amounts of text areas and texts are different: {len(texts_main)} : {len(text_areas_start_end_main)} : {len(texts_old)} : {len(text_areas_start_end_old)}")
@@ -300,9 +319,12 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     "Debugging Console Print Out"
     print("-----------------------")
     print(f"The main pointers have {len(pointers_main)} entries, the old have {len(pointers_old)}. There are {len(pointers_main)-len(pointers_old)} more pointers!")
-    print(f"change_name:{change_name}; Len: {len(change_name)}")
+    print(f"changes_name:{changes_name}; Len: {len(changes_name)}")
+    print(f"changes_main:{changes_main}; Len: {len(changes_main)}")
+    print(f"positions_main:{positions_main}; Len: {len(positions_main)}")
+    print(f"diffs:{diffs}; Len: {len(diffs)}")
     print("-----------------------")
-    return [change_name, changes_main, positions_main, diffs] # [change_name, change_content, change_position, diffs[added, removed, same]
+    return [changes_name, changes_main, positions_main, diffs] # [changes_name, change_content, change_position, diffs[added, removed, same]
 
 
 ### Debugging:
@@ -325,8 +347,8 @@ t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D00
 t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
 t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811" # M: 2 + 6
 
-#find_changes_and_make_diff_of_surrounding_text(pars_html(file_first), pars_html(file_latest))
-#find_changes_and_make_diff_of_surrounding_text(pars_html(t_old), pars_html(t_middle))
+#find_changes_and_make_diff_of_surrounding_text(pars_html(t_old), pars_html(t_new))
+#find_changes_and_make_diff_of_surrounding_text(pars_html(url_first), pars_html(url_latest))
 
 ### Debuggin FILES texting:
 '''
