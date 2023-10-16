@@ -66,3 +66,4 @@ xmldiff==2.5
 # terminal command to install the packages
 #
 # pip install -r requirements.txt
+openpyxl~=3.1.2

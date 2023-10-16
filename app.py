@@ -22,15 +22,18 @@ def explanation():
 def twoLinks():
     if request.method == 'POST':
         try:
-            old_doc = request.form['old']
-            new_doc = request.form['new']
+            old_url = request.form['old']
+            new_url = request.form['new']
             radio = request.form['btnradio']
             print(radio) #ToDo Just on? acc = false, fast is true
         except Exception as e:
             return render_template("error.html", exception= e)
         #run  todo
-        run.process_changes(html.all_in(old_doc, new_doc), radio == "fast")
-        return render_template("run.html")
+        celex_old, doc_old = html.pars_html(old_url)
+        celex_new, doc_new = html.pars_html(new_url)
+
+        run.process_changes(radio + celex_old + celex_new, html.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new), radio == "fast")
+        return render_template("run"+ radio + celex_old + celex_new +".html", celex_new= celex_new, celex_old= celex_old)
     else:  # HTTP GET
         return render_template("twoLinks.html")
 
@@ -38,39 +41,39 @@ def twoLinks():
 @app.route("/oneLink/", methods=['POST', 'GET'])
 def oneLink():
     if request.method == 'POST':
-        doc = request.form['doc']
-        ok = request.form['checkbox']
-        failure = "none"
+        try:
+            url = request.form['doc']
+            radio = request.form['btnradio']
+        except Exception as e:
+            return render_template("error.html", exception=e)
 
-        if doc == "":
-            failure = "no link entered"
-            return render_template("error.html", exception= failure)
-        if ok:
-            "success"
-            return render_template("oneLink.html")
-        else:
-            failure = "checkbox for OneLink-search was not ticked"
-            return render_template("error.html", exception= failure)
+        celex_old, doc_old = html.pars_html(url)
+        celex_new, doc_new = html.find_newest(url)
+        run.process_changes(radio + celex_old + celex_new, html.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new), radio == "fast")
+        return render_template("run"+ radio + celex_old + celex_new +".html", celex_new=celex_new, celex_old=celex_old)
     else:  # HTTP GET
         return render_template("oneLink.html")
 
 
-@app.route("/CELEX/", methods=['POST', 'GET'])
+@app.route("/celex/", methods=['POST', 'GET'])
 def celex():
     if request.method == 'POST':
-        doc = request.form['celex']
-        ok = request.form['checkbox']
-        failure = "none"
+        try:
+            celex_input = request.form['celex']
+            radio = request.form['btnradio']
+        except Exception as e:
+            return render_template("error.html", exception=e)
 
-        if doc == "":
-            failure = "no CELEX Number was entered"
-            return render_template("error.html", exception= failure)
-        if ok:
-            "success"
-            return render_template("celex.html")
-        else:
-            failure = "checkbox for CELEX-search was not ticked"
-            return render_template("error.html", exception= failure)
+        print("it works")
+        url = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:" + celex_input
+        celex_old, doc_old = html.pars_html(url)
+        if celex_input != celex_old:
+            print("ERROR")
+        celex_new, doc_new = html.find_newest(url)
+        run.process_changes(radio + celex_old + celex_new,
+                            html.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new), radio == "fast")
+        return render_template("run" + radio + celex_old + celex_new + ".html", celex_new=celex_new,
+                               celex_old=celex_old)
     else:  # HTTP GET
         return render_template("celex.html")
 

@@ -3,7 +3,6 @@ import difflib
 import urllib3 # 20 seconds for both reach files
 import requests # 10 seconds for both reach files
 from bs4 import BeautifulSoup
-import spacy
 import re
 
 def pars_html(url):
@@ -12,10 +11,20 @@ def pars_html(url):
     return: a Beautiful Soup parsed HTML document.
     function: the URL is opened and the file is fetched. IN the first attempt via the request lib, in case of an error via the slower urllib. If no URL is entered, the local file is opened and read.
     """
+    celex = url[url.find("?uri=") + 11:]
+    if "&" in celex:
+        celex = celex[:celex.find("&")]
+    """print("> HTML Parsing -----------------------")
     print(url)
+    print(celex)
+    print("-----------------------")"""
+    if not re.match("[03](A0)?\d{4}[RLDS]\d{4}([(]\d+[)])?(-\d{4}\d{2}\d{2})?", celex): # todo A0?
+        print(f"ERROR: CELEX is in wrong format!")
     html_doc = "null"
     if url.startswith('http'):
         # Fetch the html file via URL
+        if not url.startswith("https://eur-lex.europa.eu/legal-content/"):
+            print(f"ERROR: the URL does not reference a eur-lex html site!")
         try: # the faster way
             response = requests.get(url)
             response.raise_for_status()
@@ -43,7 +52,38 @@ def pars_html(url):
     # Parse and format the html file using bs4
     parsed_doc = BeautifulSoup(html_doc, 'html.parser')
 
-    return parsed_doc
+    return celex, parsed_doc
+
+def find_newest(url):
+    """
+        param: todo
+        return:
+        function:
+    """
+    celex = url[url.find("?uri=") + 11:]
+    save = celex
+    if "&" in celex:
+        celex = celex[:celex.find("&")]
+    if "-" in celex:
+        celex = celex[:celex.find("-")]
+    else:
+        celex = "0" + celex[1:]
+    try:
+        ref = pars_html(url.replace("/HTML", ""))[1].findAll("p", class_="accessCurrent")
+        date = re.findall("\d\d/\d\d/\d\d\d\d", ref[0].text)[0]
+        celex = celex + "-" + date[6] + date[7] + date[8] + date[9] + date[3] + date[4] + date[0] + date[1]
+    except Exception as e1:
+        try:
+            ref = pars_html(url.replace("/HTML", ""))[1].findAll("p", class_="forceIndicator")
+            date = re.findall("\d\d/\d\d/\d\d\d\d", ref[0].text)[0]
+            celex = celex + "-" + date[6] + date[7] + date[8] + date[9] + date[3] + date[4] + date[0] + date[1]
+        except Exception as e2:
+            print(f"FAILURE in finding the latest CELEX! With forceIndicator:{e2} when {e1} did not work!")
+
+    if celex == save:
+        print(f"FAIL: The URL already links to the newest version")
+    print(f"Old URL: {url} and new URL: https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:{celex}")
+    return pars_html("https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:" + celex)
 
 def print_out(parsed_doc):
     """
@@ -51,16 +91,6 @@ def print_out(parsed_doc):
     function: prints out the HTML document in "prettified" form on the console.
     """
     print(parsed_doc.prettify())
-
-def make_diff(parsed_doc_old, parsed_doc_new):
-    '''
-        param: an old and a new Beautiful Soup parsed HTML document.
-        return: a list containing the diff (added starts with "+" and deleted starts with "-").
-        function: all the differences between the old and the new HTML document are found via difflib and put into a list.
-    '''
-    diff = difflib.unified_diff(str(parsed_doc_old).splitlines(), str(parsed_doc_new).splitlines())
-    #todo obsolete?
-    return list(diff)
 
 def make_pointer_list(lines: list):
     """
@@ -71,26 +101,62 @@ def make_pointer_list(lines: list):
     pointers = []
     count = 0
     for line in lines:
-        if re.match("Article\s\d+$", line) or re.match("ANNEX\s[IVXLCD]+$", line) or re.match("Appendix\s\d+$", line):
+        if re.match("Article\s\d+$", line) or re.match("ANNEX\s[IVXLCD]*$", line) or re.match("Appendix\s\d+$", line):
             pointers.append(count)
         count += 1
     # For some old Texts
     if len(pointers) <= 0:
-        nlp = spacy.load("en_core_web_sm")
-        doc = nlp(" ".join(line for line in lines if line != ""))
-        lines = []
-        for sent in doc.sents:
-            if "HAS ADOPTED THIS DECISION:" in sent.text:
-                tmp = sent.text.split(":")
-                lines.append(tmp[0].strip())
-                lines.append(tmp[1].strip())
-            lines.append(sent.text)
-        count = 0
-        start = False
+        new_lines = []
         for line in lines:
-            if "HAS ADOPTED THIS DECISION:" in line:
-                start = True
-            if (line.startswith("Article") or line.startswith("ANNEX") or line.startswith("Appendix")) and start:
+            split_line = line.split(".")
+            '''if line == "" or line == " ":
+                #print("empty")
+                pass
+            el'''
+            if len(split_line) == 1 and line:
+                new_lines.append(line)
+            else:
+                for part in split_line:
+                    part = part.strip()
+                    if "HAS ADOPTED THIS" in part:
+                        split_first_part = part.split(":")
+                        for sfp in split_first_part:
+                            sfp = sfp.strip()
+                            if "HAS ADOPTED THIS" in sfp:
+                                new_lines.append(sfp + ":")
+                            elif sfp.startswith("Article") or sfp.startswith("ANNEX") or sfp.startswith("Appendix"):
+                                split_part_sfp = sfp.split(" ")
+                                if len(split_part_sfp) > 2:
+                                    new_lines.append(split_part_sfp[0] + " " + split_part_sfp[1])
+                                    tmp = []
+                                    for sp in split_part_sfp[2:]:
+                                        tmp.append(sp)
+                                    new_lines.append(" ".join(tmp))
+                                else:
+                                    print(f"weird split first line: {split_part_sfp}")
+                            else:
+                                print("Error with line part" + part)
+                    elif part.startswith("Article") or part.startswith("ANNEX") or part.startswith("Appendix"):
+                        split_part = part.split(" ")
+                        if len(split_part) > 2:
+                            new_lines.append(split_part[0] + " " + split_part[1])
+                            tmp = []
+                            for sp in split_part[2:]:
+                                tmp.append(sp)
+                            new_lines.append(" ".join(tmp))
+                        else:
+                            print(f"weird split line: {split_part}")
+                    elif part and part != " ":
+                        new_lines.append(part + ".")
+                    else:
+                        if part != "" and part != " " and part != '':
+                            print("weird" + part)
+        lines = new_lines
+        pointers = []
+        count = 0
+        for line in lines:
+            #print(line)
+            if re.match("Article\s\d+", line) or re.match("ANNEX\s[IVXLCD]*", line) or re.match("Appendix\s\d+", line):
                 pointers.append(count)
             count += 1
         # General safety test:
@@ -165,12 +231,12 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         for l_o in lines_old:
             if ("►" in l_o or "▼" in l_o) and 'B' not in l_o:
                 subtract_arrows.append(l_o[1:]) # without the arrows
-    # Subtraction
-    for a in arrows_main:
-        if a in subtract_arrows:
-            ap = arrows_main.index(a)
-            arrows_position_main.pop(ap)
-            arrows_main.remove(a)
+    # Subtraction todo sometimes old stay
+    for sa in subtract_arrows:
+        for am in arrows_main:
+            if am.startswith(sa):
+                arrows_position_main.pop(arrows_main.index(am))
+                arrows_main.pop(arrows_main.index(am))
 
     "Step 1.3: Now finding the real changed text by only looking at the changes (not the base text) and collecting texts and positions in lists. The texts are NOT being used later on, just for control and debugging purposes."
     "Result"
@@ -285,6 +351,8 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
             text_areas_start_end_old.append(ta_old)
         elif ta_old[1] == lines_end_old: # might not match, but it goes up to the end of the old document => add
             text_areas_start_end_old.append(ta_old)
+        elif ta_old[0] == 0 and ta_main[0] == 0:
+            text_areas_start_end_old.append(ta_old)
         elif ta_old[0] == ta_old[1]: # start and end is the same => NULL
             print(f"NULL_FAIL: The area {ta_old} found to the area in the main document {ta_main} has the same Start and End Pointer!")
         else: # anything else
@@ -301,7 +369,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         tmp_list = []
         pos = ta_old[0]
         while pos < ta_old[1]:
-            tmp_list.append(lines_old[pos])
+            tmp_list.append(lines_old[pos]) #todo error pops up
             pos += 1
         texts_old.append("\n".join(tmp_list))
     # General safety test: todo fails
@@ -317,13 +385,13 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
 
 
     "Debugging Console Print Out"
-    print("-----------------------")
+    '''print("> HTML Processing -----------------------")
     print(f"The main pointers have {len(pointers_main)} entries, the old have {len(pointers_old)}. There are {len(pointers_main)-len(pointers_old)} more pointers!")
     print(f"changes_name:{changes_name}; Len: {len(changes_name)}")
     print(f"changes_main:{changes_main}; Len: {len(changes_main)}")
     print(f"positions_main:{positions_main}; Len: {len(positions_main)}")
     print(f"diffs:{diffs}; Len: {len(diffs)}")
-    print("-----------------------")
+    print("html< -----------------------")'''
     return [changes_name, changes_main, positions_main, diffs] # [changes_name, change_content, change_position, diffs[added, removed, same]
 
 
@@ -347,26 +415,25 @@ t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D00
 t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
 t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811" # M: 2 + 6
 
-#find_changes_and_make_diff_of_surrounding_text(pars_html(t_old), pars_html(t_new))
-#find_changes_and_make_diff_of_surrounding_text(pars_html(url_first), pars_html(url_latest))
+#find_newest("https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D0076")
 
 ### Debuggin FILES texting:
-'''
-find_changes_and_make_diff_of_surrounding_text(example_content_f, example_content_m)
-print("SHOULD FIND C1")
-find_changes_and_make_diff_of_surrounding_text(example_content_m, example_content_l)
-print("SHOULD FIND M1")
-find_changes_and_make_diff_of_surrounding_text(example_content_f, example_content_l)
-print("SHOULD FIND C1 and M1")
-find_changes_and_make_diff_of_surrounding_text(pars_html(reach_url_old), pars_html(reach_url_new))
-print("SHOULD FIND a million things lol")
-find_changes_and_make_diff_of_surrounding_text(pars_html(t_old), pars_html(t_middle))
-print("SHOULD FIND M1 with 2 instances")
-find_changes_and_make_diff_of_surrounding_text(pars_html(t_middle), pars_html(t_new))
-print("SHOULD FIND M2 with 6 instances")
-find_changes_and_make_diff_of_surrounding_text(pars_html(t_old), pars_html(t_new))
-print("SHOULD FIND M1 and M2 with 2 and 6 instances")
-'''
+
+#find_changes_and_make_diff_of_surrounding_text(pars_html(url_first)[1], pars_html(url_middle)[1])
+#print(">>> SHOULD FIND C1")
+#find_changes_and_make_diff_of_surrounding_text(pars_html(url_middle)[1], pars_html(url_latest)[1])
+#print(">>> SHOULD FIND M1")
+#find_changes_and_make_diff_of_surrounding_text(pars_html(url_first)[1], pars_html(url_latest)[1])
+#print(">>> SHOULD FIND C1 and M1")
+#find_changes_and_make_diff_of_surrounding_text(pars_html(reach_url_old)[1], pars_html(reach_url_new)[1])
+#print(">>> SHOULD FIND a million things lol")
+#find_changes_and_make_diff_of_surrounding_text(pars_html(t_old)[1], pars_html(t_middle)[1])
+#print(">>> SHOULD FIND M1 with 2 instances")
+'''find_changes_and_make_diff_of_surrounding_text(pars_html(t_middle)[1], pars_html(t_new)[1])
+print(">>> SHOULD FIND M2 with 6 instances")'''
+#find_changes_and_make_diff_of_surrounding_text(pars_html(t_old)[1], pars_html(t_new)[1])
+#print(">>> SHOULD FIND M1 and M2 with 2 and 6 instances")
+
 
 ### Time testing
 '''
@@ -395,7 +462,3 @@ while c < 5:
 
     c += 1
 '''
-
-def all_in(url_old, url_new):
-    """Makes everything at once!"""
-    return find_changes_and_make_diff_of_surrounding_text(pars_html(url_old), pars_html(url_new))

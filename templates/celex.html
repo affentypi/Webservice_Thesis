@@ -3,24 +3,23 @@
 CELEX <b>WORK IN PROGRESS</b>
 {% endblock %}
 {% block content %}
-<form action="/oneLink/" target="_blank" method = "post">
+<form action="/celex/" target="_blank" method = "post">
   <div class="row mb-3">
     <label for="inputOld3" class="col-sm-2 col-form-label">CELEX-Number of the old Version</label>
     <div class="col-sm-10">
-      <input type="text" name="celex">
+        <input type="text" name="celex">
     </div>
   </div>
+<div class="btn-group" role="group" aria-label="Basic radio toggle button group">
+    <input type="radio" class="btn-check" name="btnradio" id="fast" value="fast" autocomplete="off" checked>
+    <label class="btn btn-outline-primary" for="fast">Fast</label>
 
-  <div class="row mb-3">
-    <div class="col-sm-10 offset-sm-2">
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" id="checkbox" name="checkbox">
-        <label class="form-check-label" for="checkbox">
-          Example checkbox
-        </label>
-      </div>
-    </div>
+    <input type="radio" class="btn-check" name="btnradio" id="accurate" value="accurate" autocomplete="off">
+    <label class="btn btn-outline-primary" for="accurate">Accurate</label>
   </div>
+    <br>
+    <br>
+    <br>
   <button type="submit" class="btn btn-primary">Start</button>
 </form>
 {% endblock %}

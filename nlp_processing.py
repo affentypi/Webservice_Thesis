@@ -1,8 +1,10 @@
+import difflib
 import re
 from pathlib import Path
 import spacy
 from spacy import displacy
 from spacy.tokens import Span
+from spacy.pipeline import EntityRuler
 import spacy_universal_sentence_encoder
 
 import html_processing
@@ -43,7 +45,7 @@ def text_strip(text: str):
               .replace("Amended by:", " ").strip())
     return result
 
-def add_labels(param_doc: spacy.tokens.doc.Doc): # More Entities todo
+def add_labels(param_doc: spacy.tokens.doc.Doc): # More Entities todo obsolete?
     """
     param:
     return:
@@ -52,208 +54,258 @@ def add_labels(param_doc: spacy.tokens.doc.Doc): # More Entities todo
     spans = []
     count = 0
     for token in param_doc: # todo it does not work
-        if re.match('\d{4}/\d{2,4}|\d{2,4}/\d{4}|L\s\d{2,4}|paragraph\s\d+', token.text):
+        if re.match('\d{4}/\d{2,4}|\d{2,4}/\d{4}', token.text):
             spans.append(Span(param_doc, count, count + 1, label="LAW"))
-        if re.match("Corrigendum|CORRIGENDUM|C\d+$|C\s\d+$", token.text):
+        if re.match("Corrigendum|CORRIGENDUM|C\d+$", token.text):
             spans.append(Span(param_doc, count, count + 1, label="CORRIGENDUM"))
-        if re.match("Amendment|AMENDMENT|M\d+$|M\s\d+$|A\d+$|A\s\d+$", token.text):
+        if re.match("Amendment|AMENDMENT|M\d+$|A\d+$", token.text):
             spans.append(Span(param_doc, count, count + 1, label="AMENDMENT"))
         count += 1
     for span in spans:
         param_doc.set_ents([span], default="unmodified")
     return param_doc
 
-def find_old_passage(a, r, content):
+def make_diff_great_again(diff):
     """
     param:
     return:
     function:
     """
-    result = ""
-    sentence_encoder = spacy_universal_sentence_encoder.load_model('en_use_lg')
-    doc_c = sentence_encoder(text_strip(content))
-    doc_a = sentence_encoder(a)
-    sent_a = []  # not .text for similarity test
-    doc_r = sentence_encoder(r)
-    sent_r = []  # .teext for concat
-    frame = [0, 0]
-
-    c = 0
-    start = -1
-    end = -1
-    first = True
-    for sent in doc_a.sents:
-        sent_a.append(sent)
-        if "▼" in sent.text or "►" in sent.text or "◄" in sent.text:
-            if first:
-                start = c
-                first = False
+    modifications = []
+    indicator = 13  # 0: same, -1: "-", +1: "+"
+    tmp = []
+    for modification in diff:
+        if modification != " " and modification != "+" and modification != "-" and not modification.startswith(
+                "---") and not modification.startswith("+++") and not modification.startswith("@@"):
+            if modification.startswith(" "):
+                if indicator == 0:
+                    if 0 < len(tmp):
+                        tmp.append(modification[1:])
+                else:
+                    modifications.append(" ".join(tmp))
+                    indicator = 0
+                    tmp = [modification]
+            elif modification.startswith("+"):
+                if indicator == 1:
+                    if 0 < len(tmp):
+                        tmp.append(modification[1:])
+                else:
+                    modifications.append(" ".join(tmp))
+                    indicator = 1
+                    tmp = [modification]
+            elif modification.startswith("-"):
+                if indicator == -1:
+                    if 0 < len(tmp):
+                        tmp.append(modification[1:])
+                else:
+                    modifications.append(" ".join(tmp))
+                    indicator = -1
+                    tmp = [modification]
             else:
-                end = c
-        c += 1
-    if start > 0:
-        frame[0] = sent_a[start - 1]
-    elif start == 0:
-        frame[0] = sent_a[start]
-    else: # error
-        print("Error start")
-    if end == -1:
-        frame[1] = sent_a[start + 1]
-    elif end < len(sent_a) - 1:
-        frame[1] = sent_a[end + 1]
-    elif end < len(sent_a):
-        frame[1] = sent_a[end]
-    else: # error
-        print("Error end")
-    c = 0
-    start = -1
-    end = -1
-    found = False
-    finish = False
-    for sent in doc_r.sents:
-        sent_r.append(sent.text)
-        if sent.similarity(doc_c) > 0.7: # updated / corrected
-            print("AN UPDATED/CORRECTION")
-            return sent.text
-        if len(sent) > 2 * len(doc_c): # if the content is a part of a sentence
-            for s in range(len(sent) - len(doc_c)):
-                p = sent[s : s + len(doc_c)]
-                if p.similarity(doc_c) > 0.7:  # updated / corrected
-                    print("AN UPDATED/CORRECTION")
-                    return p.text
-        if sent.similarity(frame[0]) > 0.9 and not found:
-            start = c
-            found = True
-        if sent.similarity(frame[1]) > 0.9 and not finish:
-            end = c
-            finish = True
-        c += 1
+                print("ERROR, diff has weird stuff in it")
+    return modifications
 
-    if found:
-        if end < 0:
-            end = len(sent_r) - 1
-        if start < 0:
-            print("START NOT FOUND")
-        if 0 < start < end < len(sent_r) - 2:
-            result = "\n".join(sent_r[start - 1 : end + 1])
-        elif 0 < start < end < len(sent_r):
-            result = "\n".join(sent_r[start : end])
-        else:
-            print("weird error")
-    else:
-        print("Help")
-    return result
 
-def process_changes(html_processing_result: list[4], spacy_model: bool): # # [change_name, change_content, change_position, diffs]
+def process_changes(file_name, html_processing_result: list[4], spacy_model: bool): #
     """
     param:
     return:
     function:
     """
-
     if spacy_model is False:
-        nlp = spacy.load("en_core_web_trf") #todo does not work
+        nlp = spacy.load("en_core_web_trf")
     else:
-        nlp = spacy.load("en_core_web_sm")  # https://spacy.io/usage/spacy-101 #todo
-    result = ["""
-{% extends "layout.html" %}
-{% block title %}
-    Run
-{% endblock %}
-{% block content %}
-    <p>Following things were found</p>
-<div class="accordion" id="changes">
-"""]
-    change_name = html_processing_result[0]
-    change_content = html_processing_result[1]
-    change_position = html_processing_result[2]
+        nlp = spacy.load("en_core_web_sm")  # https://spacy.io/usage/spacy-101
+    config = {
+        "phrase_matcher_attr": None,
+        "validate": True,
+        "overwrite_ents": True,
+        "ent_id_sep": "||",
+    }
+    ruler = nlp.add_pipe("entity_ruler", config=config)
+    patterns = [{"label": "ORG", "pattern": {"TEXT": "EU"}},
+                {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "\d{4}/\d{2,4}|\d{2,4}/\d{4}"}}]},
+                {"label": "LAW", "pattern": [{"ORTH": "OJ", "OP": "?"}, {"ORTH": "L"}, {"SHAPE": "ddd"}]},
+                {"label": "LAW", "pattern": [{"LOWER": "paragraph"}, {"SHAPE": "d", "OP": "+"}]},
+                {"label": "LAW", "pattern": [{"LOWER": "Article"}, {"SHAPE": "d", "OP": "+"}, {"ORTH": "(", "OP": "?"}, {}, {"ORTH": ")", "OP": "?"} ]},
+                {"label": "LAW", "pattern": [{"LOWER": "point"}, {"SHAPE": "d", "OP": "+"}]},
+                {"label": "LAW", "pattern": [{"LOWER": "point"}, {"ORTH": "("}, {}, {"ORTH": ")"} ]},
+                ]
+    ruler.add_patterns(patterns)
+
+    mods_name = html_processing_result[0]
+    mods_content = html_processing_result[1]
+    mods_position = html_processing_result[2]
     diffs = html_processing_result[3]
-    added = []
-    removed = []
-    old = ""
-    for diff in diffs:
-        if "--- \n" in diff and "+++ \n" in diff:
-            print("Diff with " + diff[2]) #ToDo Footnotes that are shifted
-            pass
-        for change in diff[3:]:
-            print(change)
-            '''if change.startswith("-"):
-                removed.append(change[1:])
-            elif change.startswith("+"):
-                added.append(change[1:])
-            else:
-                print("WHAT?" + change)  # todo error?'''
-    # ▼ ► ◄
     count = 0
-    while count < len(change_name) and count < len(change_content) and count < len(change_position): # General safety test
-        name = change_name[count]
+    changes_names = [] # [change_name, meta, mod[operator, content, position, comparison]]
+    changes_tupels = []
+    while count < len(mods_name) and count < len(mods_content) and count < len(mods_position): # General safety test
+        "change name"
+        name = mods_name[count]
         if "\xa0—————" in name: # Deletion
             name = name.replace("\xa0—————", "")
-        content = change_content[count]
+        change_index = -1
+        if name in changes_names:
+            change_index = changes_names.index(name)
+        else:
+            if not changes_names:
+                changes_tupels.append([])
+                changes_names.append(name)
+                change_index = 0
+            else:
+                changes_tupels.append([])
+                changes_names.append(name)
+                change_index = changes_names.index(name)
+        "modification operator"
+        operator = "DEFAULT"
+        "modification content"
+        content = mods_content[count]
         if "◄" in content: # the end of little addings
             p = content.find("◄")
             content = content[:p + 1]
+            operator = "Insertion"
         elif "\xa0—————" in content:
             content = content[:content.find("\xa0—————") + 7]
+            operator = "Deletion"
+        content = text_strip(content.replace(name, ""))
         c_len = len(content)
-        position = change_position[count]
-
-        print("--------------------------------------------")
-        print(name)
-        print(content)
-        print(position)
+        "modification position"
+        position = mods_position[count]
+        "modification old vs. new"
+        modifications = []
+        word_diff = []
+        #print("> NLP Processing -----------------------")
         if position == "":
-            position = "Tabel of content"
-            print("Tabel of content")
+            position = "Meta-Data"
+            #print("Meta-Data")
+            operator = position
         else:
-            for a in added:
-                if ("▼" + name in a or "►" + name in a) and "Amended by:" not in a and "Corrected by:" not in a :
-                    r = removed[added.index(a)]
-                    a_pos = a.find(content)
-                    if a[a_pos : a_pos + c_len] != content:
-                        print("ERROR: CONTENT NOT FOUND")
-                    print("NEW: " + a)
-                    print("OLD: " + r)
-
-                    #old = find_old_passage(a, r, content)
-                    #print(old)
-
-        doc = nlp(text_strip(content))
-        ents = displacy.render(add_labels(doc), style="ent")
-        result.append('''
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#''' + name + '''" aria-expanded="false" aria-controls="''' + name + '''">
-        ''' + name + '''
-      </button>
-    </h2>
-    <div id="''' + name + '''" class="accordion-collapse collapse" data-bs-parent="#accordionExample">
-      <div class="accordion-body">
-        <strong>''' + position + '''</strong> 
-        <br>
-        ''' + ents )
-        if position != "Tabel of content":
-            result.append('''
-            <strong> the corresponding old passage: </strong> 
-            <br>
-            ''' + '''<div class="text-black-50">... ''' + old + ''' ...</div>''')
-        result.append('''
-      </div>
-    </div>
-  </div>''')
-
-        print("--------------------------------------------")
+            #print(position)
+            "modification old vs. new"
+            for diff in diffs[1:]:
+                if "+▼" + name in diff or "+►" + name in diff:
+                    #print(diff)
+                    modifications = make_diff_great_again(diff)
+            # ▼ ► ◄
+            i = 0
+            arrow_i = []
+            same_i = []
+            for mod in modifications:
+                #print(mod)
+                if "▼" in mod or "►" in mod or "◄" in mod:
+                    arrow_i.append(i)
+                if mod.startswith(" "):
+                    same_i.append(i)
+                i += 1
+            same_frames = []
+            #print(arrow_i)
+            #print(same_i)
+            for ai in arrow_i:
+                for si in same_i:
+                    if si > ai:
+                        if 0 < si < len(modifications) - 1 and modifications[same_i[same_i.index(si) - 1]:si + 1] not in same_frames:
+                            same_frames.append(modifications[same_i[same_i.index(si) - 1]:si + 1])
+                        elif 0 < si < len(modifications) and modifications[same_i[same_i.index(si) - 1]:si] not in same_frames:
+                            same_frames.append(modifications[same_i[same_i.index(si) - 1]:si])
+                        elif 0 == si < len(modifications) - 1 and modifications[same_i[0]:si + 1] not in same_frames:
+                            same_frames.append(modifications[same_i[0]:si])
+                        else:
+                            print("ERROR in same frame")
+                        break
+            plus = []
+            minus = []
+            #print(same_frames)
+            for sf in same_frames:
+                for line in sf:
+                    if line.startswith("+"):
+                        plus.append(line[1:])
+                    elif line.startswith("-"):
+                        minus.append(line[1:])
+                    else:
+                        word_diff.append(line)
+                tmp = make_diff_great_again(list(difflib.unified_diff(text_strip(" ".join(minus)).split(" "), text_strip(" ".join(plus)).split(" "))))
+                for t in tmp:
+                    if t not in word_diff:
+                        word_diff.append(t)
+        '''print(name)
+        print(content)
+        print(word_diff)
+        changes_tupels[change_index].append([name, operator, content, position, word_diff])
+        print("nlp< -----------------------")'''
 
         count += 1
+    amount_modifications = len(mods_content) - len(changes_names)
+    result = ["""
+            {% extends "layout.html" %}
+            {% block title %}
+                Run
+            {% endblock %}
+            {% block content %}
+            <p>Following modifications were found in <strong> {{ celex_new }} </strong>compared to old <strong> {{ celex_old }} </strong></p>
+            <p> There are """ + amount_modifications.__str__() + """ modifications found!</p>
+            <div class="accordion" id="changes">
+            """]
+    for cn in changes_names:
+        tupels = changes_tupels[changes_names.index(cn)]
+        amount_mods = len(tupels)
+        for t in tupels:
+            if "Meta-Data" in t:
+                amount_mods -= 1
+        result.append('''
+            <div class="accordion-item">
+            <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#''' + cn + '''" aria-expanded="false" aria-controls="''' + cn + '''">
+            <strong> ''' + cn + " </strong> with <strong> " + amount_mods.__str__() + " </strong> Modifications"
+            "</button>"
+            "</h2>"
+            '''<div id="''' + cn + '''" class="accordion-collapse collapse" data-bs-parent="#changes">
+                <div class="accordion-body">''')
+        for tuple in tupels: # [name(0), operator(1), content(2), position(3), word_diff(4)]
+            if tuple[0] != cn:
+                print("ERROR: wrong tuple")
+                break
+            doc = nlp(tuple[2])
+            ents = displacy.render(doc, style="ent")
+            result.append('''
+                                    <div class="card">
+                                    <div class="card-body">
+                                    <strong>'''
+                          + tuple[1] + "</strong> in <strong>" + tuple[3] + "</strong>" + ents
+                          )
+            old = ""
+            for word in tuple[4]:
+                if word.startswith(" "):
+                    old = old + '''<div class="text-black-50">''' + word[1:] + '''</div>'''
+                elif word.startswith("+"):
+                    old = old + '''<p style="color:green;">''' + word[1:] + '''</p>'''
+                elif word.startswith("-"):
+                    old = old + '''<p style="color:red;">''' + word[1:] + '''</p>'''
+            if tuple[3] != "Meta-Data":
+                result.append('''
+                        <p> the corresponding passage: </p> 
+                        <br>
+                        ''' + old)
+            result.append('''</div>
+                          </div>
+                              ''')
+
+        result.append('''
+              </div>
+            </div>
+          </div>''')
 
     result.append("""
-</div>
-{% endblock %}
-    """)
+    </div>
+    {% endblock %}
+        """)
 
-    output_path = Path("templates/run.html")
+    output_path = Path("templates/run" + file_name + ".html")
     output_path.open("w", encoding="utf-8").write("".join(result))
 
-    return
+    return changes_names, changes_tupels
 
-process_changes(html_processing.all_in(url_first, url_latest), True)
+
+#r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(url_first)[1], html_processing.pars_html(url_latest)[1])
+#r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(t_old)[1], html_processing.pars_html(t_new)[1])
+#print(process_changes("test", r, True))
