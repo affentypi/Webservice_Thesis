@@ -39,16 +39,21 @@ class TestQuantitativeResults(unittest.TestCase):
                 celex_new, doc_new = html_processing.pars_html(url_new)
                 html_result = html_processing.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new)
                 fast_result = nlp_processing.process_changes("testfast" + celex_old + celex_new, html_result,True)  # fast test
-                accurate_result = nlp_processing.process_changes("testaccurate" + celex_old + celex_new, html_result,False)  # accurate test
+                #accurate_result = nlp_processing.process_changes("testaccurate" + celex_old + celex_new, html_result,False)  # accurate test
 
                 print(len(fast_result[0]) == expected_ms_changes + expected_cs_changes)
                 self.assertEqual(len(fast_result[0]), expected_ms_changes + expected_cs_changes)
-
+            elif "repealed" in result:
+                celex_old, doc_old = html_processing.pars_html(url_old)
+                celex_new, doc_new = html_processing.pars_html(url_new)
+                html_result = html_processing.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new)
+                fast_result = nlp_processing.process_changes("testfast" + celex_old + celex_new, html_result,True)  # fast test
+                self.assertEqual(fast_result, "REPEALED")
             else:
                 print("RESULT not usable")
 
     def test_file(self):
-        dataframe = openpyxl.load_workbook("./test_data/DataSet.xlsx")
+        dataframe = openpyxl.load_workbook("./test_data/DataSetWithFullResults.xlsx")
         data = dataframe.active
         data_from_file = []
         # [celex, language, celex_link, first_date, first_url, middle_date, middle_url, last_date, last_url, amount_of_consolidated_versions, directory, topic, name, comment, ...
@@ -98,10 +103,17 @@ class TestQuantitativeResults(unittest.TestCase):
                 [celex, language, celex_link, first_date, first_url, middle_date, middle_url, last_date, last_url,
                  amount_of_consolidated_versions, directory, topic, name, comment, retrieval_date, result_first_last,
                  result_middle_last, result_first_middle])
-
-            if first_url is not None and last_url is not None and result_first_last is not None and "old" not in comment and "repealed" not in result_first_last:
-                with self.subTest(result_first_last):
-                    self.test_old_new(first_url, last_url, result_first_last)
+            if row < 0:
+                continue
+            elif row > 300:
+                break
+            else:
+                if first_url is not None and last_url is not None and result_first_last is not None:
+                    with self.subTest(celex + first_date + last_date + result_first_last):
+                        self.test_old_new(first_url, last_url, result_first_last)
+                if middle_url is not None and last_url is not None and result_middle_last is not None:
+                    with self.subTest(celex + middle_date + last_date + result_middle_last):
+                        self.test_old_new(middle_url, last_url, result_middle_last)
 
     def test_upper(self): #testing the test
         self.assertEqual('foo'.upper(), 'FOO')

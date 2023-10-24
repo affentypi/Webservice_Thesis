@@ -29,7 +29,8 @@ t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D00
 t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
 t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811" # M: 2 + 6
 # One Link Text File (and Deleted TEST)
-test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02013R0347-20220428" # M: 0 + 0 + 0 + 1 + 1 + 0 + 1
+test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32013R0347"
+#test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02013R0347-20220428" # M: 0 + 0 + 0 + 1 + 1 + 0 + 1
 
 
 def text_strip(text: str):
@@ -103,6 +104,7 @@ def make_diff_great_again(diff):
                     tmp = [modification]
             else:
                 print("ERROR, diff has weird stuff in it")
+    # todo error with +1. and -1.
     return modifications
 
 
@@ -112,6 +114,18 @@ def process_changes(file_name, html_processing_result: list[4], spacy_model: boo
     return:
     function:
     """
+    if type(html_processing_result[0]) != list and (html_processing_result[0] == "REPEALED" or html_processing_result[0] == "REPEALED or an Error"):
+        print("repealed")
+        result = """
+            {% extends "layout.html" %}
+            {% block title %}
+                Run
+            {% endblock %}
+            {% block content %}
+            <p>Following modifications were found in <strong> {{ celex_new }} </strong>compared to old <strong> {{ celex_old }} </strong></p>
+            <p> The legal act was repealed!</p>"""
+        return "REPEALED"
+
     if spacy_model is False:
         nlp = spacy.load("en_core_web_trf")
     else:
@@ -145,7 +159,7 @@ def process_changes(file_name, html_processing_result: list[4], spacy_model: boo
         name = mods_name[count]
         if "\xa0—————" in name: # Deletion
             name = name.replace("\xa0—————", "")
-        change_index = -1
+        change_index = -1 #todo remove?
         if name in changes_names:
             change_index = changes_names.index(name)
         else:
@@ -169,70 +183,95 @@ def process_changes(file_name, html_processing_result: list[4], spacy_model: boo
             content = content[:content.find("\xa0—————") + 7]
             operator = "Deletion"
         content = text_strip(content.replace(name, ""))
-        c_len = len(content)
+        c_len = len(content) #todo remove?
         "modification position"
         position = mods_position[count]
         "modification old vs. new"
         modifications = []
         word_diff = []
-        #print("> NLP Processing -----------------------")
         if position == "":
             position = "Meta-Data"
-            #print("Meta-Data")
             operator = position
         else:
-            #print(position)
             "modification old vs. new"
+            possible_diffs = []
+            print(f">>> Name: {name}, Position: {position}, Content: {content}")
             for diff in diffs[1:]:
                 if "+▼" + name in diff or "+►" + name in diff:
-                    #print(diff)
-                    modifications = make_diff_great_again(diff)
-            # ▼ ► ◄
-            i = 0
-            arrow_i = []
-            same_i = []
-            for mod in modifications:
-                #print(mod)
-                if "▼" in mod or "►" in mod or "◄" in mod:
-                    arrow_i.append(i)
-                if mod.startswith(" "):
-                    same_i.append(i)
-                i += 1
-            same_frames = []
-            #print(arrow_i)
-            #print(same_i)
-            for ai in arrow_i:
-                for si in same_i:
-                    if si > ai:
-                        if 0 < si < len(modifications) - 1 and modifications[same_i[same_i.index(si) - 1]:si + 1] not in same_frames:
-                            same_frames.append(modifications[same_i[same_i.index(si) - 1]:si + 1])
-                        elif 0 < si < len(modifications) and modifications[same_i[same_i.index(si) - 1]:si] not in same_frames:
-                            same_frames.append(modifications[same_i[same_i.index(si) - 1]:si])
-                        elif 0 == si < len(modifications) - 1 and modifications[same_i[0]:si + 1] not in same_frames:
-                            same_frames.append(modifications[same_i[0]:si])
-                        else:
-                            print("ERROR in same frame")
+                    if make_diff_great_again(diff) not in possible_diffs:
+                        possible_diffs.append(make_diff_great_again(diff))
+                elif "+▼" + name + "\xa0—————" in diff or "+►" + name + "\xa0—————" in diff:
+                    operator = "Deletion"
+                    if make_diff_great_again(diff) not in possible_diffs:
+                        possible_diffs.append(make_diff_great_again(diff))
+            for diff in possible_diffs:
+                for part in diff:
+                    part = text_strip(part)
+                    if content in part or part in content and operator != "Deletion":
+                        modifications = diff
                         break
-            plus = []
-            minus = []
-            #print(same_frames)
-            for sf in same_frames:
-                for line in sf:
-                    if line.startswith("+"):
-                        plus.append(line[1:])
-                    elif line.startswith("-"):
-                        minus.append(line[1:])
-                    else:
-                        word_diff.append(line)
+                    elif position in part and operator == "Deletion":
+                        modifications = diff
+                        break
+            arrow_index = []
+            same_indicis = []
+            index = 0
+            for mod in modifications:
+                if "▼" in mod or "►" in mod or "◄" in mod: # ▼ ► ◄
+                    arrow_index.append(index)
+                if mod.startswith(" "):
+                    same_indicis.append(index)
+                index += 1
+            frame = [0, len(modifications)]
+            indexed = True
+            if len(arrow_index) == 1:
+                for i in same_indicis:
+                    if arrow_index[0] > i > frame[0]:
+                        frame[0] = i
+                    elif arrow_index[0] < i < frame[1]:
+                        frame[1] = i
+            elif len(arrow_index) == 2:
+                for i in same_indicis:
+                    if arrow_index[0] > i > frame[0]:
+                        frame[0] = i
+                    elif arrow_index[1] < i < frame[1]:
+                        frame[1] = i
+            elif len(arrow_index) > 2:
+                for i in same_indicis:
+                    if arrow_index[0] > i > frame[0]:
+                        frame[0] = i
+                    elif arrow_index[-1] < i < frame[1]:
+                        frame[1] = i
+            else:
+                print("no indicis")
+                indexed = False
+            if operator == "Deletion":
+                word_diff = modifications[frame[0]:frame[1]]
+            elif indexed:
+                plus = []
+                minus = []
+                for mod in modifications[frame[0]:frame[1]]:
+                    if mod.startswith("+"):
+                        plus.append(mod[1:])
+                    elif mod.startswith("-"):
+                        minus.append(mod[1:])
+                    else: #todo help?
+                        word_diff.append(mod)
                 tmp = make_diff_great_again(list(difflib.unified_diff(text_strip(" ".join(minus)).split(" "), text_strip(" ".join(plus)).split(" "))))
                 for t in tmp:
                     if t not in word_diff:
                         word_diff.append(t)
-        '''print(name)
-        print(content)
-        print(word_diff)
+            else:
+                word_diff = modifications
+        print(f">>> diff: {word_diff}")
+        """print("> NLP Processing -----------------------")
+        print(f"Name: {name}")
+        print(f"Position: {position}")
+        print(f"Operator: {operator}")
+        print(f"Content: {content}")
+        print(f"Word-Diff: {word_diff}")
+        print("nlp< -----------------------")"""
         changes_tupels[change_index].append([name, operator, content, position, word_diff])
-        print("nlp< -----------------------")'''
 
         count += 1
     amount_modifications = len(mods_content) - len(changes_names)
@@ -265,8 +304,11 @@ def process_changes(file_name, html_processing_result: list[4], spacy_model: boo
             if tuple[0] != cn:
                 print("ERROR: wrong tuple")
                 break
-            doc = nlp(tuple[2])
-            ents = displacy.render(doc, style="ent")
+            if "—————" in tuple[2]:
+                ents = tuple[2]
+            else:
+                doc = nlp(tuple[2])
+                ents = displacy.render(doc, style="ent")
             result.append('''
                                     <div class="card">
                                     <div class="card-body">
@@ -283,7 +325,7 @@ def process_changes(file_name, html_processing_result: list[4], spacy_model: boo
                     old = old + '''<p style="color:red;">''' + word[1:] + '''</p>'''
             if tuple[3] != "Meta-Data":
                 result.append('''
-                        <p> the corresponding passage: </p> 
+                        <p> <strong> the corresponding passage: </strong></p> 
                         <br>
                         ''' + old)
             result.append('''</div>
@@ -300,12 +342,19 @@ def process_changes(file_name, html_processing_result: list[4], spacy_model: boo
     {% endblock %}
         """)
 
-    output_path = Path("templates/run" + file_name + ".html")
-    output_path.open("w", encoding="utf-8").write("".join(result))
+    #output_path = Path("templates/x_output_run" + file_name + ".html")
+    #output_path.open("w", encoding="utf-8").write("".join(result))
 
     return changes_names, changes_tupels
 
+#Other Test
+peal_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32011R0211"
+peal_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02011R0211-20131008" # C: 0 ; M: 2 + 1 ;
+peal_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02011R0211-20200101" # C: 0 ; M: 0 ; repealed!
+
+r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(peal_old)[1], html_processing.pars_html(peal_middle)[1])
 
 #r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(url_first)[1], html_processing.pars_html(url_latest)[1])
+#r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(test_one_link)[1], html_processing.find_newest(test_one_link)[1])
 #r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(t_old)[1], html_processing.pars_html(t_new)[1])
-#print(process_changes("test", r, True))
+print(process_changes("test", r, True))

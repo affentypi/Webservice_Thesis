@@ -101,7 +101,7 @@ def make_pointer_list(lines: list):
     pointers = []
     count = 0
     for line in lines:
-        if re.match("Article\s\d+$", line) or re.match("ANNEX\s[IVXLCD]*$", line) or re.match("Appendix\s\d+$", line):
+        if re.match("Article\s\d+$", line) or re.match("ANNEX(\s[IVXLCD])*$", line) or re.match("Appendix(\s\d+)$", line):
             pointers.append(count)
         count += 1
     # For some old Texts
@@ -131,7 +131,7 @@ def make_pointer_list(lines: list):
                                     tmp = []
                                     for sp in split_part_sfp[2:]:
                                         tmp.append(sp)
-                                    new_lines.append(" ".join(tmp))
+                                    new_lines.append(" ".join(tmp) + ".")
                                 else:
                                     print(f"weird split first line: {split_part_sfp}")
                             else:
@@ -143,7 +143,7 @@ def make_pointer_list(lines: list):
                             tmp = []
                             for sp in split_part[2:]:
                                 tmp.append(sp)
-                            new_lines.append(" ".join(tmp))
+                            new_lines.append(" ".join(tmp) + ".")
                         else:
                             print(f"weird split line: {split_part}")
                     elif part and part != " ":
@@ -156,7 +156,7 @@ def make_pointer_list(lines: list):
         count = 0
         for line in lines:
             #print(line)
-            if re.match("Article\s\d+", line) or re.match("ANNEX\s[IVXLCD]*", line) or re.match("Appendix\s\d+", line):
+            if re.match("Article\s\d+", line) or re.match("ANNEX(\s[IVXLCD])*", line) or re.match("Appendix(\s\d+)*", line):
                 pointers.append(count)
             count += 1
         # General safety test:
@@ -176,7 +176,7 @@ def find_surrounding_pointers(pointers: list, position: int):
     # Pointer start in the furthest apart position from the first line to the last pointer available. If the position is outside the range filled with pointers todo because somehow it works
     surrounding_pointers = [0, pointers[len(pointers) - 1]]
     if position > pointers[len(pointers) - 1]:
-        print(f"Position {position} is bigger than the last pointer {pointers[len(pointers) - 1]}. UNFIXED PROBLEM!") #TODO
+        print(f"Position {position} is bigger than the last pointer {pointers[len(pointers) - 1]}. Maybe fixed PROBLEM!") #TODO maybe it's fixed
         surrounding_pointers = [pointers[len(pointers) - 1], pointers[len(pointers) - 1]]
     # Binary search from lecture GAD
     while lower_bound <= upper_bound:
@@ -340,21 +340,38 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
                 # Pointers further away which may match (direction -> EoF)
                 ta_main[1] = pointers_main[pointers_main.index(ta_main[1]) + 1]
             elif ta_old[1] >= 0:
-                break # found
+                if ta_old[1] == ta_old[0]:
+                    if ta_old[1] == pointers_old[len(pointers_old) - 1]:
+                        ta_old[1] = lines_end_old
+                        ta_main[1] = lines_end_main
+                        break
+                    elif ta_old[1] < pointers_old[len(pointers_old) - 1] and pointers_old.index(ta_old[1]) < len(pointers_old) - 1:
+                        ta_old[1] = pointers_old[pointers_old.index(ta_old[1]) + 1]
+                        if pointers_main.index(ta_main[1]) < len(pointers_main) - 1:
+                            ta_main[1] = pointers_main[pointers_main.index(ta_main[1]) + 1]
+                        else:
+                            ta_main[1] = lines_end_main
+                        break
+                    else:
+                        print("WELP")
+                        pass # todo this might be a work around
+                else:
+                    break # found
             else:
                 # Every document has an End (of file), so this is a pointer they have in common (RESCUE)
                 ta_old[1] = lines_end_old
                 break
 
         "Step 2.4: Check the found old pointers to some criteria"
+        if ta_old[0] == ta_old[1]: # start and end is the same => NULL
+            print(f"NULL_FAIL: The area {ta_old} found to the area in the main document {ta_main} has the same Start and End Pointer!")
         if lines_main[ta_main[0]] == lines_old[ta_old[0]] and lines_main[ta_main[1]] == lines_old[ta_old[1]]: # main and old are matching => add
             text_areas_start_end_old.append(ta_old)
         elif ta_old[1] == lines_end_old: # might not match, but it goes up to the end of the old document => add
+            print("NECESSARY")
             text_areas_start_end_old.append(ta_old)
         elif ta_old[0] == 0 and ta_main[0] == 0:
             text_areas_start_end_old.append(ta_old)
-        elif ta_old[0] == ta_old[1]: # start and end is the same => NULL
-            print(f"NULL_FAIL: The area {ta_old} found to the area in the main document {ta_main} has the same Start and End Pointer!")
         else: # anything else
             print(f"FAIL (after text_area checks): Final tests failed with {ta_old} for main {ta_main} WHERE main says '{lines_main[ta_main[0]]}' and '{lines_main[ta_main[1]]}' while old says '{lines_old[ta_old[0]]}' and '{lines_old[ta_old[1]]}'. ")
 
@@ -373,7 +390,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
             pos += 1
         texts_old.append("\n".join(tmp_list))
     # General safety test: todo fails
-    if len(texts_old) != len(texts_main) or len(texts_main) != len(text_areas_start_end_main) or len(text_areas_start_end_main) != len(text_areas_start_end_old):
+    if len(texts_old) != len(texts_main) or len(texts_main) != len(text_areas_start_end_main) or len(text_areas_start_end_main) != len(text_areas_start_end_old): # somehow it works todo
         print(f"FAIL (after text concat): Amounts of text areas and texts are different: {len(texts_main)} : {len(text_areas_start_end_main)} : {len(texts_old)} : {len(text_areas_start_end_old)}")
 
     "Step 4: Make for every pair of (old and main) text a diff via difflib for the return."
@@ -383,15 +400,21 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         t_o = texts_old[texts_main.index(t)]
         diffs.append(list(difflib.unified_diff(t_o.splitlines(), t.splitlines()))) # todo something wrong here?
 
+    if len(changes_name) == 0 and len(changes_main) == 0 and len(positions_main) == 0 and len(diffs) == 0:
+        return ["REPEALED", lines_main, [], []]
+    elif len(changes_name) == 0 or len(changes_main) == 0 or len(positions_main) == 0 or len(diffs) == 0:
+        return ["REPEALED or an Error", lines_main, [], []]
 
     "Debugging Console Print Out"
-    '''print("> HTML Processing -----------------------")
+    print("> HTML Processing -----------------------")
     print(f"The main pointers have {len(pointers_main)} entries, the old have {len(pointers_old)}. There are {len(pointers_main)-len(pointers_old)} more pointers!")
     print(f"changes_name:{changes_name}; Len: {len(changes_name)}")
     print(f"changes_main:{changes_main}; Len: {len(changes_main)}")
     print(f"positions_main:{positions_main}; Len: {len(positions_main)}")
     print(f"diffs:{diffs}; Len: {len(diffs)}")
-    print("html< -----------------------")'''
+    for diff in diffs:
+        print(diff)
+    print("html< -----------------------")
     return [changes_name, changes_main, positions_main, diffs] # [changes_name, change_content, change_position, diffs[added, removed, same]
 
 
@@ -429,10 +452,10 @@ t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D00
 #print(">>> SHOULD FIND a million things lol")
 #find_changes_and_make_diff_of_surrounding_text(pars_html(t_old)[1], pars_html(t_middle)[1])
 #print(">>> SHOULD FIND M1 with 2 instances")
-'''find_changes_and_make_diff_of_surrounding_text(pars_html(t_middle)[1], pars_html(t_new)[1])
-print(">>> SHOULD FIND M2 with 6 instances")'''
-#find_changes_and_make_diff_of_surrounding_text(pars_html(t_old)[1], pars_html(t_new)[1])
-#print(">>> SHOULD FIND M1 and M2 with 2 and 6 instances")
+#find_changes_and_make_diff_of_surrounding_text(pars_html(t_middle)[1], pars_html(t_new)[1])
+#print(">>> SHOULD FIND M2 with 6 instances")
+'''find_changes_and_make_diff_of_surrounding_text(pars_html(t_old)[1], pars_html(t_new)[1])
+print(">>> SHOULD FIND M1 and M2 with 2 and 6 instances")'''
 
 
 ### Time testing
