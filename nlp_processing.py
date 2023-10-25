@@ -4,34 +4,8 @@ from pathlib import Path
 import spacy
 from spacy import displacy
 from spacy.tokens import Span
-from spacy.pipeline import EntityRuler
-import spacy_universal_sentence_encoder
 
 import html_processing
-
-### Debugging:
-# Big file:
-# URL to the html file (REACH 17.12.2022)
-reach_url_new = 'https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02006R1907-20221217&from=EN'
-# URL to the old html file (REACH 06.03.2013)
-reach_url_old = 'https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02006R1907-20130306&from=EN'
-# Small file:
-# URL to online html file (32019R0817)
-url_first = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32019R0817&from=DE"
-url_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0817-20190522&from=DE" # C: 1 M: 0
-url_latest = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX%3A02019R0817-20210803&from=DE" # C: 1 M: 1
-# Path to local html file (32019R0817)
-file_first = "test_data/CELEX32019R0817_EN_TXT.html"
-file_middle = "test_data/CELEX02019R0817-20190522_EN_TXT.html"  # C: 1 M: 0
-file_latest = "test_data/CELEX02019R0817-20210803_EN_TXT.html"  # C: 1 M: 1
-# Some Test File
-t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D0076"
-t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
-t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811" # M: 2 + 6
-# One Link Text File (and Deleted TEST)
-test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32013R0347"
-#test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02013R0347-20220428" # M: 0 + 0 + 0 + 1 + 1 + 0 + 1
-
 
 def text_strip(text: str):
     """
@@ -114,8 +88,7 @@ def process_changes(file_name, html_processing_result: list[4], spacy_model: boo
     return:
     function:
     """
-    if type(html_processing_result[0]) != list and (html_processing_result[0] == "REPEALED" or html_processing_result[0] == "REPEALED or an Error"):
-        print("repealed")
+    if type(html_processing_result[0]) != list and html_processing_result[0] == "REPEALED or no changes!":
         result = """
             {% extends "layout.html" %}
             {% block title %}
@@ -123,13 +96,21 @@ def process_changes(file_name, html_processing_result: list[4], spacy_model: boo
             {% endblock %}
             {% block content %}
             <p>Following modifications were found in <strong> {{ celex_new }} </strong>compared to old <strong> {{ celex_old }} </strong></p>
-            <p> The legal act was repealed!</p>"""
-        return "REPEALED"
+            <p> The legal act was repealed or there where no changes! </p>
+            <p> Please check the files! </p>
+            {% endblock %}
+            """
+        #output_path = Path("templates/x_output_run" + file_name + ".html")
+        #output_path.open("w", encoding="utf-8").write(result)
+        return None
+
+    # todo elif with if something is empty!
 
     if spacy_model is False:
         nlp = spacy.load("en_core_web_trf")
     else:
         nlp = spacy.load("en_core_web_sm")  # https://spacy.io/usage/spacy-101
+
     config = {
         "phrase_matcher_attr": None,
         "validate": True,
@@ -264,13 +245,13 @@ def process_changes(file_name, html_processing_result: list[4], spacy_model: boo
             else:
                 word_diff = modifications
         print(f">>> diff: {word_diff}")
-        """print("> NLP Processing -----------------------")
+        '''print("> NLP Processing -----------------------")
         print(f"Name: {name}")
         print(f"Position: {position}")
         print(f"Operator: {operator}")
         print(f"Content: {content}")
         print(f"Word-Diff: {word_diff}")
-        print("nlp< -----------------------")"""
+        print("nlp< -----------------------")'''
         changes_tupels[change_index].append([name, operator, content, position, word_diff])
 
         count += 1
@@ -347,14 +328,91 @@ def process_changes(file_name, html_processing_result: list[4], spacy_model: boo
 
     return changes_names, changes_tupels
 
-#Other Test
-peal_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32011R0211"
-peal_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02011R0211-20131008" # C: 0 ; M: 2 + 1 ;
-peal_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02011R0211-20200101" # C: 0 ; M: 0 ; repealed!
+### Debugging:
+# Big file:
+# URL to the html file (REACH 17.12.2022)
+reach_url_new = 'https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02006R1907-20221217&from=EN'
+# URL to the old html file (REACH 06.03.2013)
+reach_url_old = 'https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02006R1907-20130306&from=EN'
+# Small file:
+# URL to online html file (32019R0817)
+url_first = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32019R0817&from=DE"
+url_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0817-20190522&from=DE" # C: 1 M: 0
+url_latest = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX%3A02019R0817-20210803&from=DE" # C: 1 M: 1
+# Path to local html file (32019R0817)
+file_first = "test_data/CELEX32019R0817_EN_TXT.html"
+file_middle = "test_data/CELEX02019R0817-20190522_EN_TXT.html"  # C: 1 M: 0
+file_latest = "test_data/CELEX02019R0817-20210803_EN_TXT.html"  # C: 1 M: 1
+# Some Test File
+t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D0076"
+t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
+t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811" # M: 2 + 6
+# One Link Text File (and Deleted TEST)
+test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32013R0347"
+#test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02013R0347-20220428" # M: 0 + 0 + 0 + 1 + 1 + 0 + 1
 
-r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(peal_old)[1], html_processing.pars_html(peal_middle)[1])
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+""" Nested Modifications and Weird Arrows are found! Not fixable?
+stuff_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:31997S2136"
+stuff_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:01997S2136-20011215"
+result = "C: 0 ; M: 1 ;"
+"""
+
+# fails
+
+stuff_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:31997S2136"
+stuff_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:01997S2136-20011215"
+result = "C: 0 ; M: 1 ;"
+
+r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(stuff_old)[1], html_processing.pars_html(stuff_new)[1])
 
 #r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(url_first)[1], html_processing.pars_html(url_latest)[1])
 #r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(test_one_link)[1], html_processing.find_newest(test_one_link)[1])
 #r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(t_old)[1], html_processing.pars_html(t_new)[1])
-print(process_changes("test", r, True))
+stuff = process_changes("test", r, True)
+
+expected_cs = result.split(";")[0].replace("C: ", "").split("+")
+expected_cs_changes = len(expected_cs)
+expected_cs_mods_per_changes = []
+for ecs in expected_cs:
+    expected_cs_mods_per_changes.append(int(ecs))
+    if int(ecs) == 0:
+        expected_cs_changes -= 1
+
+expected_ms = result.split(";")[1].replace("M: ", "").split("+")
+expected_ms_changes = len(expected_ms)
+expected_ms_mods_per_changes = []
+for ems in expected_ms:
+    expected_ms_mods_per_changes.append(int(ems))
+    if int(ems) == 0:
+        expected_ms_changes -= 1
+
+overall_changes = 0
+for modcs in expected_cs_mods_per_changes:
+    overall_changes += modcs
+for modms in expected_ms_mods_per_changes:
+    overall_changes += modms
+
+print(f"C: {expected_cs_changes} and Modifications per Changes = {expected_cs_mods_per_changes}")
+print(f"M: {expected_ms_changes} and Modifications per Changes = {expected_ms_mods_per_changes}")
+print(f"Overall there are {overall_changes} expected!")
+print(stuff[0])
+print(overall_changes)
+overall_found_changes = 0
+for rs in stuff[1]:
+    overall_found_changes += len(rs)
+overall_found_changes -= len(stuff[1])
+print(overall_found_changes)
+found_ms_changes = 0
+found_cs_changes = 0
+for sname in stuff[0]:
+    if sname.startswith("A") or sname.startswith("M"):
+        found_ms_changes += 1
+    if sname.startswith("C"):
+        found_cs_changes += 1
+print(found_ms_changes == expected_ms_changes)
+print(found_cs_changes == expected_cs_changes)
+print(len(stuff[0]) == expected_ms_changes + expected_cs_changes)
+print(len(stuff[1]) == expected_ms_changes + expected_cs_changes)
+print(overall_found_changes == overall_changes)

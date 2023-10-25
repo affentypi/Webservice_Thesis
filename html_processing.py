@@ -204,13 +204,13 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     function: #ToDo 4 steps
     """
     # Old file
-    lines_old = parsed_doc_old.text.splitlines() #ToDo check for wrong param order (new vs old)!
-    lines_end_old = len(lines_old) - 1
+    lines_old = parsed_doc_old.text.splitlines() #ToDo check for wrong param order (new vs old) and for different celex!!
     pointers_old, lines_old = make_pointer_list(lines_old)
+    lines_end_old = len(lines_old) - 1
     # Main file (the newer)
     lines_main = parsed_doc_main.text.splitlines()
-    lines_end_main = len(lines_main) - 1
     pointers_main, lines_main = make_pointer_list(lines_main)
+    lines_end_main = len(lines_main) - 1
 
     "Step 1: Find the changes via the marking arrows '►' and '▼'!"
     arrows_main = [] # list of arrow names
@@ -234,7 +234,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     # Subtraction todo sometimes old stay
     for sa in subtract_arrows:
         for am in arrows_main:
-            if am.startswith(sa):
+            if am == sa or am == sa + "\xa0—————":
                 arrows_position_main.pop(arrows_main.index(am))
                 arrows_main.pop(arrows_main.index(am))
 
@@ -401,12 +401,12 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         diffs.append(list(difflib.unified_diff(t_o.splitlines(), t.splitlines()))) # todo something wrong here?
 
     if len(changes_name) == 0 and len(changes_main) == 0 and len(positions_main) == 0 and len(diffs) == 0:
-        return ["REPEALED", lines_main, [], []]
-    elif len(changes_name) == 0 or len(changes_main) == 0 or len(positions_main) == 0 or len(diffs) == 0:
-        return ["REPEALED or an Error", lines_main, [], []]
+        return ["REPEALED or no changes!", lines_main, [], []]
+    """elif len(changes_name) == 0 or len(changes_main) == 0 or len(positions_main) == 0 or len(diffs) == 0:
+        return ["REPEALED or an Error", lines_main, [], []]"""
 
     "Debugging Console Print Out"
-    print("> HTML Processing -----------------------")
+    '''print("> HTML Processing -----------------------")
     print(f"The main pointers have {len(pointers_main)} entries, the old have {len(pointers_old)}. There are {len(pointers_main)-len(pointers_old)} more pointers!")
     print(f"changes_name:{changes_name}; Len: {len(changes_name)}")
     print(f"changes_main:{changes_main}; Len: {len(changes_main)}")
@@ -414,74 +414,5 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     print(f"diffs:{diffs}; Len: {len(diffs)}")
     for diff in diffs:
         print(diff)
-    print("html< -----------------------")
+    print("html< -----------------------")'''
     return [changes_name, changes_main, positions_main, diffs] # [changes_name, change_content, change_position, diffs[added, removed, same]
-
-
-### Debugging:
-# Big file:
-# URL to the html file (REACH 17.12.2022)
-reach_url_new = 'https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02006R1907-20221217&from=EN'
-# URL to the old html file (REACH 06.03.2013)
-reach_url_old = 'https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02006R1907-20130306&from=EN'
-# Small file:
-# URL to online html file (32019R0817)
-url_first = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32019R0817&from=DE"
-url_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0817-20190522&from=DE" # C: 1 M: 0
-url_latest = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX%3A02019R0817-20210803&from=DE" # C: 1 M: 1
-# Path to local html file (32019R0817)
-file_first = "/test_data/CELEX32019R0817_EN_TXT.html"
-file_middle = "/test_data/CELEX02019R0817-20190522_EN_TXT.html"  # C: 1 M: 0
-file_latest = "/test_data/CELEX02019R0817-20210803_EN_TXT.html"  # C: 1 M: 1
-# Some Test File
-t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D0076"
-t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
-t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811" # M: 2 + 6
-
-#find_newest("https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D0076")
-
-### Debuggin FILES texting:
-
-#find_changes_and_make_diff_of_surrounding_text(pars_html(url_first)[1], pars_html(url_middle)[1])
-#print(">>> SHOULD FIND C1")
-#find_changes_and_make_diff_of_surrounding_text(pars_html(url_middle)[1], pars_html(url_latest)[1])
-#print(">>> SHOULD FIND M1")
-#find_changes_and_make_diff_of_surrounding_text(pars_html(url_first)[1], pars_html(url_latest)[1])
-#print(">>> SHOULD FIND C1 and M1")
-#find_changes_and_make_diff_of_surrounding_text(pars_html(reach_url_old)[1], pars_html(reach_url_new)[1])
-#print(">>> SHOULD FIND a million things lol")
-#find_changes_and_make_diff_of_surrounding_text(pars_html(t_old)[1], pars_html(t_middle)[1])
-#print(">>> SHOULD FIND M1 with 2 instances")
-#find_changes_and_make_diff_of_surrounding_text(pars_html(t_middle)[1], pars_html(t_new)[1])
-#print(">>> SHOULD FIND M2 with 6 instances")
-'''find_changes_and_make_diff_of_surrounding_text(pars_html(t_old)[1], pars_html(t_new)[1])
-print(">>> SHOULD FIND M1 and M2 with 2 and 6 instances")'''
-
-
-### Time testing
-'''
-c = 0
-while c < 5:
-
-    anfang = datetime.datetime.now()
-    print(anfang)
-
-    ## Separate: (REACH) 08.529213, 08.503610, 07.790659 // 07.736736, 08.013454, 07.601664, 09.949427, 07.740778 :: extracts additional information
-    eins = pars_html(reach_url_old)
-    zwei = pars_html(reach_url_new)
-    find_changes_and_make_diff_of_surrounding_text(eins, zwei)
-
-    mitte = datetime.datetime.now()
-    print(mitte)
-
-    ## All at once: (REACH) 09.635288, 08.890149, 09.370657 // 08.827065, 09.026564, 08.808975, 08.982896, 09.387952 :: a bit slower
-    list(difflib.unified_diff(pars_html(reach_url_old).text.splitlines(), pars_html(reach_url_new).text.splitlines()))
-
-    ende = datetime.datetime.now()
-    print(ende)
-    print("-----------------------")
-    print(f"The Separate duration is {mitte - anfang}!")
-    print(f"The AllAtOnce duration is {ende - mitte}!")
-
-    c += 1
-'''
