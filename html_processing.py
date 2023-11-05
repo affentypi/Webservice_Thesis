@@ -56,9 +56,10 @@ def pars_html(url):
 
 def find_newest(url):
     """
-        param: todo
-        return:
-        function:
+    param: a URL in either HTTP format or a local file-path.
+    return: a Beautiful Soup parsed HTML document of the newest available consolidated document.
+    function: first, the celex number is extracted and the document overview is opened (without /HTML in URL).
+    The HTML tag for the "newest document" is used to create the new URL, which is then parsed by the function pars_html(url)
     """
     celex = url[url.find("?uri=") + 11:]
     save = celex
@@ -95,8 +96,10 @@ def print_out(parsed_doc):
 def make_pointer_list(lines: list):
     """
     param: a list of lines from a parsed html document; reduced by the bs4 function '.text' and the built-in python string function '.splitlines()' (like: "parsed_doc.text.splitlines()").
-    return: a list of pointers in form of integers indicating the line/position in line-list.
+    return: a list of pointers in form of integers indicating the line/position in line-list and the line-list.
     function: the pointers are found by choosing lines which start with Article, ANNEX or Appendix to find points which outline the structure of a document independent of line-numbers to compare newer, longer documents to the old versions. The AAAs mostly output the expected "Chapter-Lines" but sometime independent sentences are found, too. Those are not problematic, because either they are in both documents and only help by being another anchor, or they are only in one, then they are being skipped in the matching process.
+    For old documents, where the whole document is in one line, 0 pointers will be found, so the lines are overwritten by a new line array, where the lines are usable for extracting the pointers.
+    For this, the line with where the all the text is in, the line is split by delimiters (that are re-appended to not change the text itself.
     """
     pointers = []
     count = 0
@@ -108,45 +111,52 @@ def make_pointer_list(lines: list):
     if len(pointers) <= 0:
         new_lines = []
         for line in lines:
+            "The lines are split into parts and by parts appended to the new_lines list."
             split_line = line.split(".")
-            '''if line == "" or line == " ":
-                #print("empty")
-                pass
-            el'''
             if len(split_line) == 1 and line:
                 new_lines.append(line)
             else:
                 for part in split_line:
                     part = part.strip()
                     if "HAS ADOPTED THIS" in part:
-                        split_first_part = part.split(":")
+                        "The first article is often right behind the introduction, so the get the first article, this needs an extra processing."
+                        split_first_part = part.split(":") # tmp list
                         for sfp in split_first_part:
                             sfp = sfp.strip()
                             if "HAS ADOPTED THIS" in sfp:
                                 new_lines.append(sfp + ":")
                             elif sfp.startswith("Article") or sfp.startswith("ANNEX") or sfp.startswith("Appendix"):
-                                split_part_sfp = sfp.split(" ")
+                                split_part_sfp = sfp.split(" ") # tmp list
                                 if len(split_part_sfp) > 2:
+                                    "Appending the first two parts of the parts ( Article and its number or name)."
                                     new_lines.append(split_part_sfp[0] + " " + split_part_sfp[1])
                                     tmp = []
+                                    "Everything behind the first two parts are put together to again represent the paragraph and appended to the list."
                                     for sp in split_part_sfp[2:]:
                                         tmp.append(sp)
                                     new_lines.append(" ".join(tmp) + ".")
+                                elif len(split_part_sfp) > 1:
+                                    "If there are only two parts (for example  'Article 1. ipsum...')."
+                                    new_lines.append(split_part_sfp[0] + " " + split_part_sfp[1])
                                 else:
-                                    print(f"weird split first line: {split_part_sfp}")
+                                    print("Error with split part" + sfp)
                             else:
                                 print("Error with line part" + part)
                     elif part.startswith("Article") or part.startswith("ANNEX") or part.startswith("Appendix"):
-                        split_part = part.split(" ")
+                        "Same process as before just for every (not first) article."
+                        split_part = part.split(" ") # tmp list
                         if len(split_part) > 2:
                             new_lines.append(split_part[0] + " " + split_part[1])
                             tmp = []
                             for sp in split_part[2:]:
                                 tmp.append(sp)
                             new_lines.append(" ".join(tmp) + ".")
+                        elif len(split_part) > 1:
+                            new_lines.append(split_part[0] + " " + split_part[1])
                         else:
-                            print(f"weird split line: {split_part}")
+                            print("Error with split part" + part)
                     elif part and part != " ":
+                        "Appending the normal text parts (and re-adding the delimiter."
                         new_lines.append(part + ".")
                     else:
                         if part != "" and part != " " and part != '':
@@ -155,7 +165,7 @@ def make_pointer_list(lines: list):
         pointers = []
         count = 0
         for line in lines:
-            #print(line)
+            "Again the pointers with the new lines."
             if re.match("Article\s\d+", line) or re.match("ANNEX(\s[IVXLCD])*", line) or re.match("Appendix(\s\d+)*", line):
                 pointers.append(count)
             count += 1
@@ -176,7 +186,6 @@ def find_surrounding_pointers(pointers: list, position: int):
     # Pointer start in the furthest apart position from the first line to the last pointer available. If the position is outside the range filled with pointers todo because somehow it works
     surrounding_pointers = [0, pointers[len(pointers) - 1]]
     if position > pointers[len(pointers) - 1]:
-        print(f"Position {position} is bigger than the last pointer {pointers[len(pointers) - 1]}. Maybe fixed PROBLEM!") #TODO maybe it's fixed
         surrounding_pointers = [pointers[len(pointers) - 1], pointers[len(pointers) - 1]]
     # Binary search from lecture GAD
     while lower_bound <= upper_bound:
@@ -200,8 +209,17 @@ def find_surrounding_pointers(pointers: list, position: int):
 def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup, parsed_doc_main: BeautifulSoup):
     """
     param: two Beautiful Soup parsed html documents, one is called "MAIN" which is the newer version of the legal act and the old one for comparison.
-    return: a [x,y] set of two lists: the first (x) is a list of diffs of text passages between old and new/main containing changes and the second (y) is a list of only the change-texts just for testing and trying.
-    function: #ToDo 4 steps
+    return:  a list like [changes_name, change_content, change_position, diffs] where change_name, content, etc. are lists with aligning indicis for each modification.
+    function:
+    Step 1: Find the changes via the marking arrows '►' and '▼'!
+    Step 1.2: Check if the old file also has already been changed and if yes find the changes via the marking arrows as above. The found arrows can be subtracted from the main list. Even if the changes are not the same in the version, later changes will have own arrows, thus every variation will be found.
+    Step 1.3: Now finding the real changed text by only looking at the changes (not the base text) and collecting texts and positions in lists. The texts are NOT being used later on, just for control and debugging purposes.
+    Step 2: Find the pointers surrounding the change and the corresponding in the old version.
+    Step 2.2: [removed]
+    Step 2.3: Find the old pointers matching to the main ones. If there is no old pointer fitting the main pointer (which is very possible), a new main pointer has to be found, so the text-passages stay comparable.
+    Step 2.4: Check the found old pointers to match the criteria necessary to equate them to the new.
+    Step 3: Concat the lines in the area between Start and End pointers to one complete single string for each document.
+    Step 4: Make for every pair of (old and main) text a diff via difflib for the return.
     """
     # Old file
     lines_old = parsed_doc_old.text.splitlines() #ToDo check for wrong param order (new vs old) and for different celex!!
@@ -217,12 +235,10 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     arrows_position_main = [] # list of arrow position (indicis align)
     count = 0
     for l_m in lines_main:
-        #TODO '►' and '▼' are not safe or are they?
-        if "►" in l_m or "▼" in l_m: # Todo ◄
+        if "►" in l_m or "▼" in l_m: # ◄
             arrows_main.append(l_m[1:]) # without the arrows
             arrows_position_main.append(count)
         count += 1
-    # General safety test: todo
 
     "Step 1.2: Check if the old file also has already been changed and if yes find the changes via the marking arrows as above. The found arrows can be subtracted from the main list. Even if the changes are not the same in the version, later changes will have own arrows, thus every variation will be found."
     old_is_basis = 'Amended by:' not in lines_old and 'Corrected by:' not in lines_old # alternatively html class 'hd-modifiers'
@@ -231,7 +247,6 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         for l_o in lines_old:
             if ("►" in l_o or "▼" in l_o) and 'B' not in l_o:
                 subtract_arrows.append(l_o[1:]) # without the arrows
-    # Subtraction todo sometimes old stay
     for sa in subtract_arrows:
         for am in arrows_main:
             if am == sa or am == sa + "\xa0—————":
@@ -277,7 +292,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     if len(changes_main) != len(change_positions_main):
         print(f"FAIL (after finding changes_main): The amount of change-texts {len(changes_main)} and change-arrow-positions {len(change_positions_main)} are not the same, thus the indicis will not align!")
 
-    "Step 2: Find the pointers surrounding the change and the corresponding in the old version"
+    "Step 2: Find the pointers surrounding the change and the corresponding in the old version."
     # Find the surrounding pointers for every change-position
     text_areas_start_end_main_with_duplicates = []  # consists of [from,to] sets
     for p in change_positions_main:
@@ -312,10 +327,12 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
             return -1
 
     "Step 2.2: Remove duplicates from text_areas_start_end_main, because for the diff, every text passage can be processed once, not multiple times"
-    text_areas_start_end_main = []
+    # This step was remove, due to issues reassigning the modifications to the diff.
+    '''text_areas_start_end_main = []
     for ta in text_areas_start_end_main_with_duplicates:
         if ta not in text_areas_start_end_main:
-            text_areas_start_end_main.append(ta)
+            text_areas_start_end_main.append(ta)'''
+    text_areas_start_end_main = text_areas_start_end_main_with_duplicates
 
     "Step 2.3: Find the old pointers matching to the main ones. If there is no old pointer fitting the main pointer (which is very possible), a new main pointer has to be found, so the text-passages stay comparable."
     text_areas_start_end_old = []
@@ -352,9 +369,6 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
                         else:
                             ta_main[1] = lines_end_main
                         break
-                    else:
-                        print("WELP")
-                        pass # todo this might be a work around
                 else:
                     break # found
             else:
@@ -362,13 +376,12 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
                 ta_old[1] = lines_end_old
                 break
 
-        "Step 2.4: Check the found old pointers to some criteria"
+        "Step 2.4: Check the found old pointers to some criteria."
         if ta_old[0] == ta_old[1]: # start and end is the same => NULL
             print(f"NULL_FAIL: The area {ta_old} found to the area in the main document {ta_main} has the same Start and End Pointer!")
         if lines_main[ta_main[0]] == lines_old[ta_old[0]] and lines_main[ta_main[1]] == lines_old[ta_old[1]]: # main and old are matching => add
             text_areas_start_end_old.append(ta_old)
         elif ta_old[1] == lines_end_old: # might not match, but it goes up to the end of the old document => add
-            print("NECESSARY")
             text_areas_start_end_old.append(ta_old)
         elif ta_old[0] == 0 and ta_main[0] == 0:
             text_areas_start_end_old.append(ta_old)
@@ -386,33 +399,26 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         tmp_list = []
         pos = ta_old[0]
         while pos < ta_old[1]:
-            tmp_list.append(lines_old[pos]) #todo error pops up
+            tmp_list.append(lines_old[pos])
             pos += 1
         texts_old.append("\n".join(tmp_list))
-    # General safety test: todo fails
-    if len(texts_old) != len(texts_main) or len(texts_main) != len(text_areas_start_end_main) or len(text_areas_start_end_main) != len(text_areas_start_end_old): # somehow it works todo
-        print(f"FAIL (after text concat): Amounts of text areas and texts are different: {len(texts_main)} : {len(text_areas_start_end_main)} : {len(texts_old)} : {len(text_areas_start_end_old)}")
 
     "Step 4: Make for every pair of (old and main) text a diff via difflib for the return."
     "Result"
     diffs = []
     for t in texts_main:
         t_o = texts_old[texts_main.index(t)]
-        diffs.append(list(difflib.unified_diff(t_o.splitlines(), t.splitlines()))) # todo something wrong here?
+        diffs.append(list(difflib.unified_diff(t_o.splitlines(), t.splitlines())))
 
-    if len(changes_name) == 0 and len(changes_main) == 0 and len(positions_main) == 0 and len(diffs) == 0:
+    if len(changes_name) == 0 and len(changes_main) == 0 and len(positions_main) == 0 and len(diffs) == 0: #todo append to other errors?
         return ["REPEALED or no changes!", lines_main, [], []]
-    """elif len(changes_name) == 0 or len(changes_main) == 0 or len(positions_main) == 0 or len(diffs) == 0:
-        return ["REPEALED or an Error", lines_main, [], []]"""
 
     "Debugging Console Print Out"
     '''print("> HTML Processing -----------------------")
     print(f"The main pointers have {len(pointers_main)} entries, the old have {len(pointers_old)}. There are {len(pointers_main)-len(pointers_old)} more pointers!")
-    print(f"changes_name:{changes_name}; Len: {len(changes_name)}")
-    print(f"changes_main:{changes_main}; Len: {len(changes_main)}")
-    print(f"positions_main:{positions_main}; Len: {len(positions_main)}")
-    print(f"diffs:{diffs}; Len: {len(diffs)}")
-    for diff in diffs:
-        print(diff)
+    print(f"Len: {len(changes_name)}: changes_name:{changes_name};")
+    print(f"Len: {len(changes_main)}: changes_main:{changes_main};")
+    print(f"Len: {len(positions_main)}: positions_main:{positions_main};")
+    print(f"Len: {len(diffs)}: diffs:{diffs};")
     print("html< -----------------------")'''
-    return [changes_name, changes_main, positions_main, diffs] # [changes_name, change_content, change_position, diffs[added, removed, same]
+    return [changes_name, changes_main, positions_main, diffs] # [changes_name, change_content, change_position, diffs]
