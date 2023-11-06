@@ -143,14 +143,22 @@ class TestQuantitativeResults(unittest.TestCase):
             elif row > 300: # 100, 200, 300
                 break
             else:
-                flf, fle = 0, 0
-                mlf, mle = 0, 0
-                fmf, fme = 0, 0
                 if (first_url is not None and "NULL" not in first_url and "Not" not in first_url
                         and last_url is not None and "NULL" not in last_url and "Not" not in last_url
                         and result_first_last is not None and "OVERFLOW" not in result_first_last and "NULL" not in result_first_last):
                     with self.subTest(celex + first_date + last_date + result_first_last):
                         flf, fle = self.test_old_new(first_url, last_url, result_first_last)
+                        if directory is not None:
+                            print(f"To Directory {directory} the expected {fle} and found {flf} are added")
+                            try:
+                                directory = int(directory)
+                                if 0 < directory < 21:
+                                    found_dir[directory - 1] += flf
+                                    expected_dir[directory - 1] += fle
+                                    print(found_dir)
+                                    print(expected_dir)
+                            except:
+                                print("Calc-Error")
                 if (middle_url is not None and "NULL" not in middle_url and "Not" not in middle_url
                         and last_url is not None and "NULL" not in last_url and "Not" not in last_url
                         and result_middle_last is not None and "OVERFLOW" not in result_middle_last and "NULL" not in result_middle_last):
@@ -161,13 +169,6 @@ class TestQuantitativeResults(unittest.TestCase):
                     and result_first_middle is not None and "OVERFLOW" not in result_first_middle and "NULL" not in result_first_middle):
                     with self.subTest(celex + first_date + middle_date + result_first_middle):
                         fmf, fme = self.test_old_new(first_url, middle_url, result_first_middle)
-
-                print(directory)
-                directory = int(directory)
-                if directory is not None and type(directory) == int and 0 < directory < 21:
-                    found_dir[directory - 1] += (flf+ mlf + fmf)
-                    expected_dir[directory - 1] += (fle + mle + fme)
-
         print("FINAL RESULT:")
         print("Found")
         print(found_dir)
