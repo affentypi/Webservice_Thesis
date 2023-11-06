@@ -84,7 +84,7 @@ class TestQuantitativeResults(unittest.TestCase):
             else:
                 self.assertEqual(0,13)
                 print("RESULT not usable")
-                return 0,0
+        return 0,0
 
     def test_file(self):
         dataframe = openpyxl.load_workbook("./test_data/DataSetWithFullResults.xlsx")
