@@ -16,7 +16,7 @@ class TestQuantitativeResults(unittest.TestCase):
             pass
         else:
             if re.match("C:\s\d+\s([+]\s\d+\s)*; M:\s\d+\s([+]\s\d+\s)*;", result):
-                "Extracting the data from the result column to integer usable for comparison"
+                "Extracting the data from the result column to integer usable for comparison."
                 expected_cs = result.split(";")[0].replace("C: ", "").split("+")
                 expected_cs_changes = len(expected_cs)
                 expected_cs_mods_per_changes = []
@@ -42,7 +42,7 @@ class TestQuantitativeResults(unittest.TestCase):
                 print(f"M: {expected_ms_changes} and Modifications per Changes = {expected_ms_mods_per_changes}")
                 print(f"Overall there are {overall_expected_mods} expected!")
 
-                "Run the algorithm (either acurate or fast)"
+                "Run the algorithm (either acurate or fast):"
                 celex_old, doc_old = html_processing.pars_html(url_old)
                 celex_new, doc_new = html_processing.pars_html(url_new)
                 html_result = html_processing.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new)
@@ -146,7 +146,7 @@ class TestQuantitativeResults(unittest.TestCase):
                         and result_first_last is not None and "OVERFLOW" not in result_first_last and "NULL" not in result_first_last):
                     with self.subTest(celex + first_date + last_date + result_first_last):
                         flf, fle = self.test_old_new(first_url, last_url, result_first_last)
-                        "To add up the modifications (comment the assertion test!)"
+                        "To add up the modifications (comment out the assertion test!):"
                         '''if directory is not None:
                             print(f"To Directory {directory} the expected {fle} and found {flf} are added")
                             try:

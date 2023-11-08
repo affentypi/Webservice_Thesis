@@ -66,7 +66,7 @@ def make_diff_great_again(diff):
                     indicator = -1
                     tmp = [modification]
             else:
-                #print("ERROR, diff has weird stuff in it") # todo fails at: 32019R2033, 32013R0883, 32013R1308, ...
+                #print("ERROR, diff has weird stuff in it") # todo fails at: 32019R2033, 32013R0883, 32013R1308, ...? -> still works
                 pass
     return modifications
 
@@ -84,16 +84,14 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
                 Run
             {% endblock %}
             {% block content %}
-            <p>Following modifications were found in <strong> {{ celex_new }} </strong>compared to old <strong> {{ celex_old }} </strong></p>
+            <p>Following modifications were found in <a href="https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:{{ celex_new }}"> {{ celex_new }} </a> compared to old <a href="https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:{{ celex_old }}"> {{ celex_old }} </a></p>
             <p> The legal act was repealed or there where no changes! </p>
             <p> Please check the files! </p>
             {% endblock %}
             """
-        #return None # todo remove after testing
         output_path = Path("templates/x_output_run" + file_name + ".html")
         output_path.open("w", encoding="utf-8").write(result)
         return None
-    # todo elif with if something is empty! and other fail-safes
 
     "Set Up for the NLP!"
     if spacy_model is False:
@@ -121,9 +119,9 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
                 {"label": "LAW", "pattern": [{"LOWER": "Article"}, {"SHAPE": "d", "OP": "+"}, {"ORTH": "(", "OP": "?"}, {}, {"ORTH": ")", "OP": "?"} ]},
                 {"label": "LAW", "pattern": [{"LOWER": "point"}, {"SHAPE": "d", "OP": "+"}]},
                 {"label": "LAW", "pattern": [{"LOWER": "point"}, {"ORTH": "("}, {}, {"ORTH": ")"} ]},
-                {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "\d{4}/\d{2,4}|\d{2,4}/\d{4}"}}]} #todo
+                {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "\d{4}/\d{2,4}|\d{2,4}/\d{4}"}}]}
                 ]
-    ruler.add_patterns(patterns) # todo
+    ruler.add_patterns(patterns)
     # [org, law, date, gpe, norp, loc, language, money, quantity] (the only outputted ents)
     colors = {"ORG": "linear-gradient(90deg, #aa9cfc, #7aecec)", "LAW": "linear-gradient(90deg, #aa9cfc, #ff8197)", "DATE": "linear-gradient(90deg, #e49ce7, #bfe1d9)",
                 "GPE": "linear-gradient(90deg, #aa5abe, #feca74)", "NORP": "linear-gradient(90deg, #aa77ff, #feca74)", "LOC": "linear-gradient(90deg, #aaa5eb, #feca74)",
@@ -259,7 +257,7 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
             elif minus_count > 0:
                 finished_diff = minus
             else:
-                print("what?") # todo found some times: 32013R0345, 32013R0346, ...
+                print("what?") # todo found: 32013R0345, 32013R0346, ...? -> still works
             word_diff = finished_diff
 
             "The operator is set by the count of added and removed. Some Additions (very exceptional) remove little parts (like a end signature) so is the pluses are far more, its still an addition."
@@ -343,13 +341,6 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
                 print("ERROR: wrong tuple")
                 break
             ents = displacy.render(tuple[4], style="ent", options=options)  # fails for some files
-            """try:
-                ents = displacy.render(tuple[4], style="ent", options=options) #fails for some files
-            except Exception as e:
-                print(e)
-                print(tuple[4])
-                print("If there is no deletion bar above, this is an Error!")
-                ents = tuple[3]""" #todo needed?
             result.append('''
                                     <div class="card">
                                     <div class="card-body">
@@ -390,12 +381,6 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
     return changes_names, changes_tupels
 
 ### Debugging:
-# Big file:
-# URL to the html file (REACH 17.12.2022)
-reach_url_new = 'https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02006R1907-20221217&from=EN'
-# URL to the old html file (REACH 06.03.2013)
-reach_url_old = 'https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02006R1907-20130306&from=EN'
-# Small file:
 # URL to online html file (32019R0817)
 url_first = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32019R0817&from=DE"
 url_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0817-20190522&from=DE" # C: 1 M: 0
@@ -404,13 +389,6 @@ url_latest = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX%3A0
 file_first = "test_data/CELEX32019R0817_EN_TXT.html"
 file_middle = "test_data/CELEX02019R0817-20190522_EN_TXT.html"  # C: 1 M: 0
 file_latest = "test_data/CELEX02019R0817-20210803_EN_TXT.html"  # C: 1 M: 1
-# Some Test File
-t_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32003D0076"
-t_middle = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20180510" # M: 2
-t_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02003D0076-20210811" # M: 2 + 6
-# One Link Text File (and Deleted TEST)
-test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32013R0347"
-#test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02013R0347-20220428" # M: 0 + 0 + 0 + 1 + 1 + 0 + 1
 
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 

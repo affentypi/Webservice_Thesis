@@ -154,7 +154,7 @@ def make_pointer_list(lines: list):
                         elif len(split_part) > 1:
                             new_lines.append(split_part[0] + " " + split_part[1])
                         else:
-                            print("Error with split part" + part)
+                            print("Error with article split part" + part)
                     elif part and part != " ":
                         "Appending the normal text parts (and re-adding the delimiter."
                         new_lines.append(part + ".")
@@ -171,7 +171,7 @@ def make_pointer_list(lines: list):
             count += 1
         # General safety test:
         if len(pointers) <= 0:
-            print(f"FAIL (after making pointer list): No pointers in {lines}!")
+            print(f"FAIL (after making pointer list): No pointers in {lines}!") # empty or repealed
 
     return pointers, lines
 
@@ -183,7 +183,7 @@ def find_surrounding_pointers(pointers: list, position: int):
     """
     lower_bound = 0
     upper_bound = len(pointers) - 1
-    # Pointer start in the furthest apart position from the first line to the last pointer available. If the position is outside the range filled with pointers todo because somehow it works
+    "Pointer start in the furthest apart position from the first line to the last pointer available."
     surrounding_pointers = [0, pointers[len(pointers) - 1]]
     if position > pointers[len(pointers) - 1]:
         surrounding_pointers = [pointers[len(pointers) - 1], pointers[len(pointers) - 1]]
@@ -222,7 +222,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
     Step 4: Make for every pair of (old and main) text a diff via difflib for the return.
     """
     # Old file
-    lines_old = parsed_doc_old.text.splitlines() #ToDo check for wrong param order (new vs old) and for different celex!!
+    lines_old = parsed_doc_old.text.splitlines() #ToDo safety check for wrong param order (new vs old) and for different celex!!
     pointers_old, lines_old = make_pointer_list(lines_old)
     lines_end_old = len(lines_old) - 1
     # Main file (the newer)
@@ -268,12 +268,12 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         list_len = len(arrows_main)
         while count < list_len:
             if arrows_main[count] == 'B':
-                # Base Text: nothing is changed in those parts.
+                "Base Text: nothing is changed in those parts."
                 count += 1
                 continue
             else:
                 changes_name.append(arrows_main[count])
-                # A, M or C Text: Amendment or Corrigendum which will be processed.
+                "A, M or C Text: Amendment or Corrigendum which will be processed."
                 change_positions_main.append(arrows_position_main[count])
                 area_of_change = []
                 pos = arrows_position_main[count]
@@ -285,12 +285,9 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
                     while pos < arrows_position_main[count + 1]:
                         area_of_change.append(lines_main[pos])
                         pos += 1
-                # concat the lines to a single string
+                "concat the lines to a single string"
                 changes_main.append(" ".join(area_of_change))
             count += 1
-    # General safety test:
-    if len(changes_main) != len(change_positions_main):
-        print(f"FAIL (after finding changes_main): The amount of change-texts {len(changes_main)} and change-arrow-positions {len(change_positions_main)} are not the same, thus the indicis will not align!")
 
     "Step 2: Find the pointers surrounding the change and the corresponding in the old version."
     # Find the surrounding pointers for every change-position
