@@ -323,7 +323,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
                 # previous pointers
                 if result_index - n < len(pointers_old) and lines_old[pointers_old[result_index - n]] == correct_line_main:
                     return pointers_old[result_index - n]
-            # return if no pointer fits ToDo is that true?
+            # return if no pointer fits
             return -1
 
     "Step 2.2: Remove duplicates from text_areas_start_end_main, because for the diff, every text passage can be processed once, not multiple times"
@@ -410,7 +410,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
         t_o = texts_old[texts_main.index(t)]
         diffs.append(list(difflib.unified_diff(t_o.splitlines(), t.splitlines())))
 
-    if len(changes_name) == 0 and len(changes_main) == 0 and len(positions_main) == 0 and len(diffs) == 0: #todo append to other errors?
+    if len(changes_name) == 0 and len(changes_main) == 0 and len(positions_main) == 0 and len(diffs) == 0:
         return ["REPEALED or no changes!", lines_main, [], []]
 
     "Debugging Console Print Out"

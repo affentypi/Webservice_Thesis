@@ -89,7 +89,7 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
             <p> Please check the files! </p>
             {% endblock %}
             """
-        return None # todo remove after testing
+        #return None # todo remove after testing
         output_path = Path("templates/x_output_run" + file_name + ".html")
         output_path.open("w", encoding="utf-8").write(result)
         return None
@@ -110,12 +110,18 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
     "This contains the NLP Patterns which are used for the rule-based information extraction."
     ruler = nlp.add_pipe("entity_ruler", config=config)
     patterns = [{"label": "ORG", "pattern": {"TEXT": "EU"}},
+                {"label": "ORG", "pattern": {"LOWER": "council"}},
+                {"label": "ORG", "pattern": {"LOWER": "commission"}},
+                {"label": "ORG", "pattern": [{"LOWER": "european"}, {"LOWER": "parliament"}]},
                 {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "\d{4}/\d{2,4}|\d{2,4}/\d{4}"}}]},
+                {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "Amendment|AMENDMENT|M\d+$|A\d+$"}}]}, #todo rename in change?
+                {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "Corrigendum|CORRIGENDUM|C\d+$"}}]},
                 {"label": "LAW", "pattern": [{"ORTH": "OJ", "OP": "?"}, {"ORTH": "L"}, {"SHAPE": "ddd"}]},
                 {"label": "LAW", "pattern": [{"LOWER": "paragraph"}, {"SHAPE": "d", "OP": "+"}]},
                 {"label": "LAW", "pattern": [{"LOWER": "Article"}, {"SHAPE": "d", "OP": "+"}, {"ORTH": "(", "OP": "?"}, {}, {"ORTH": ")", "OP": "?"} ]},
                 {"label": "LAW", "pattern": [{"LOWER": "point"}, {"SHAPE": "d", "OP": "+"}]},
                 {"label": "LAW", "pattern": [{"LOWER": "point"}, {"ORTH": "("}, {}, {"ORTH": ")"} ]},
+                {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "\d{4}/\d{2,4}|\d{2,4}/\d{4}"}}]} #todo
                 ]
     ruler.add_patterns(patterns) # todo
     # [org, law, date, gpe, norp, loc, language, money, quantity] (the only outputted ents)
@@ -300,7 +306,7 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
         count += 1
 
     "For testing to improve runtime and not create all the HTML files:"
-    return changes_names, changes_tupels
+    #return changes_names, changes_tupels
 
     " HTML output "
     amount_modifications = len(mods_content) - len(changes_names)
@@ -311,7 +317,7 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
                 Run
             {% endblock %}
             {% block content %}
-            <p>Following modifications were found in <strong> {{ celex_new }} </strong>compared to old <strong> {{ celex_old }} </strong></p>
+            <p>Following modifications were found in <a href="https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:{{ celex_new }}"> {{ celex_new }} </a> compared to old <a href="https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:{{ celex_old }}"> {{ celex_old }} </a></p>
             <p> There are """ + amount_modifications.__str__() + """ modifications found!</p>
             <div class="accordion" id="changes">
             """]
@@ -408,10 +414,10 @@ test_one_link = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:
 
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-stuff_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32002L0032"
-stuff_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02002L0032-20191128"
-result = "C: 0 ; M: 4 + 7 + 4 + 3 + 1 + 3 + 3 + 3 + 5 + 7 ;"
-'''
+'''stuff_old = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:31997S1401"
+stuff_new = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:01997S1401-19981004"
+result = "C: 2 ; M: 1 ;"
+
 r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(stuff_old)[1], html_processing.pars_html(stuff_new)[1])
 
 #r = html_processing.find_changes_and_make_diff_of_surrounding_text(html_processing.pars_html(url_first)[1], html_processing.pars_html(url_latest)[1])
@@ -463,4 +469,6 @@ print(found_ms_changes == expected_ms_changes)
 print(found_cs_changes == expected_cs_changes)
 print(len(stuff[0]) == expected_ms_changes + expected_cs_changes)
 print(len(stuff[1]) == expected_ms_changes + expected_cs_changes)
+print(overall_found_changes)
+print(overall_changes)
 print(overall_found_changes == overall_changes)'''
