@@ -382,7 +382,7 @@ def find_changes_and_make_diff_of_surrounding_text(parsed_doc_old: BeautifulSoup
             text_areas_start_end_old.append(ta_old)
         elif ta_old[0] == 0 and ta_main[0] == 0:
             text_areas_start_end_old.append(ta_old)
-        else: # anything else
+        else: # anything else todo fails for 32002L0057 -> still works
             print(f"FAIL (after text_area checks): Final tests failed with {ta_old} for main {ta_main} WHERE main says '{lines_main[ta_main[0]]}' and '{lines_main[ta_main[1]]}' while old says '{lines_old[ta_old[0]]}' and '{lines_old[ta_old[1]]}'. ")
 
         "Step 3: Concat the lines in the area between Start and End pointers to one complete single string for each document."

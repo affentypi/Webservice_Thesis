@@ -89,6 +89,7 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
             <p> Please check the files! </p>
             {% endblock %}
             """
+        return None
         output_path = Path("templates/x_output_run" + file_name + ".html")
         output_path.open("w", encoding="utf-8").write(result)
         return None
@@ -114,11 +115,11 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
                 {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "\d{4}/\d{2,4}|\d{2,4}/\d{4}"}}]},
                 {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "Amendment|AMENDMENT|M\d+$|A\d+$"}}]}, #todo rename in change?
                 {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "Corrigendum|CORRIGENDUM|C\d+$"}}]},
-                {"label": "LAW", "pattern": [{"ORTH": "OJ", "OP": "?"}, {"ORTH": "L"}, {"SHAPE": "ddd"}]},
+                {"label": "LAW", "pattern": [{"TEXT": "OJ", "OP": "?"}, {"TEXT": "L"}, {"SHAPE": "ddd"}]},
                 {"label": "LAW", "pattern": [{"LOWER": "paragraph"}, {"SHAPE": "d", "OP": "+"}]},
-                {"label": "LAW", "pattern": [{"LOWER": "Article"}, {"SHAPE": "d", "OP": "+"}, {"ORTH": "(", "OP": "?"}, {}, {"ORTH": ")", "OP": "?"} ]},
+                {"label": "LAW", "pattern": [{"LOWER": "Article"}, {"SHAPE": "d", "OP": "+"}, {"ORTH": "(", "OP": "?"}, {}, {"ORTH": ")", "OP": "?"}]},
                 {"label": "LAW", "pattern": [{"LOWER": "point"}, {"SHAPE": "d", "OP": "+"}]},
-                {"label": "LAW", "pattern": [{"LOWER": "point"}, {"ORTH": "("}, {}, {"ORTH": ")"} ]},
+                {"label": "LAW", "pattern": [{"LOWER": "point"}, {"ORTH": "("}, {}, {"ORTH": ")"}]},
                 {"label": "LAW", "pattern": [{"TEXT": {"REGEX": "\d{4}/\d{2,4}|\d{2,4}/\d{4}"}}]}
                 ]
     ruler.add_patterns(patterns)
@@ -304,7 +305,7 @@ def process_nlp(file_name, html_processing_result: list[4], spacy_model: bool):
         count += 1
 
     "For testing to improve runtime and not create all the HTML files:"
-    #return changes_names, changes_tupels
+    return changes_names, changes_tupels
 
     " HTML output "
     amount_modifications = len(mods_content) - len(changes_names)

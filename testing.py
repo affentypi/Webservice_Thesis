@@ -47,7 +47,7 @@ class TestQuantitativeResults(unittest.TestCase):
                 celex_new, doc_new = html_processing.pars_html(url_new)
                 html_result = html_processing.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new)
                 nlp_result = nlp_processing.process_nlp("testfast" + celex_old + celex_new, html_result, True)  # fast test
-                #nlp_result = nlp_processing.process_changes("testaccurate" + celex_old + celex_new, html_result,False)  # accurate test todo
+                nlp_result = nlp_processing.process_nlp("testaccurate" + celex_old + celex_new, html_result,False)  # accurate test todo
 
                 if "repealed" in result:
                     print(nlp_result is None)
@@ -80,11 +80,11 @@ class TestQuantitativeResults(unittest.TestCase):
                     print(f"Test 3: found {overall_found_mods}, expected {overall_expected_mods}")
                     print(overall_found_mods == overall_expected_mods)
                     self.assertEqual(overall_found_mods, overall_expected_mods) # test 3: amount of all modifications
-                    return overall_found_mods, overall_expected_mods
+                    return overall_found_mods, overall_expected_mods, len(nlp_result[0]), expected_ms_changes + expected_cs_changes
             else:
                 self.assertEqual(0,13)
                 print("RESULT not usable")
-        return 0,0
+        return 0,0,0,0
 
     def test_file(self):
         dataframe = openpyxl.load_workbook("./test_data/DataSetWithFullResults.xlsx")
@@ -92,6 +92,8 @@ class TestQuantitativeResults(unittest.TestCase):
 
         expected_mod_dir = [0] * 20
         found_mod_dir = [0] * 20
+        expected_ch_dir = [0] * 20
+        found_ch_dir = [0] * 20
 
         for row in range(2, data.max_row):
             print("ROW -----------------------------------")
@@ -145,19 +147,21 @@ class TestQuantitativeResults(unittest.TestCase):
                         and last_url is not None and "NULL" not in last_url and "Not" not in last_url
                         and result_first_last is not None and "OVERFLOW" not in result_first_last and "NULL" not in result_first_last):
                     with self.subTest(celex + first_date + last_date + result_first_last):
-                        flf, fle = self.test_old_new(first_url, last_url, result_first_last)
+                        mfound, mexp, chfound, chexp = self.test_old_new(first_url, last_url, result_first_last)
                         "To add up the modifications (comment out the assertion test!):"
-                        '''if directory is not None:
-                            print(f"To Directory {directory} the expected {fle} and found {flf} are added")
+                        if directory is not None:
+                            print(f"To Directory {directory} the expected {mexp} and found {mfound} are added")
                             try:
                                 directory = int(directory)
                                 if 0 < directory < 21:
-                                    found_mod_dir[directory - 1] += flf
-                                    expected_mod_dir[directory - 1] += fle
+                                    found_mod_dir[directory - 1] += mfound
+                                    expected_mod_dir[directory - 1] += mexp
+                                    found_ch_dir[directory - 1] += chfound
+                                    expected_ch_dir[directory - 1] += chexp
                                     print(found_mod_dir)
                                     print(expected_mod_dir)
                             except:
-                                print("Calc-Error")'''
+                                print("Calc-Error")
                 if (middle_url is not None and "NULL" not in middle_url and "Not" not in middle_url
                         and last_url is not None and "NULL" not in last_url and "Not" not in last_url
                         and result_middle_last is not None and "OVERFLOW" not in result_middle_last and "NULL" not in result_middle_last):
@@ -169,9 +173,14 @@ class TestQuantitativeResults(unittest.TestCase):
                     with self.subTest(celex + first_date + middle_date + result_first_middle):
                         self.test_old_new(first_url, middle_url, result_first_middle)
         "The result is only accurate, if the self.assert() tests are commented out, because failing tests return before the value is return!"
-        '''print("FINAL RESULT: (mod)")
+        print("FINAL RESULT: (mod)")
         print("Found")
         print(found_mod_dir)
         print("Expected")
-        print(expected_mod_dir)'''
+        print(expected_mod_dir)
+        print("FINAL RESULT: (ch)")
+        print("Found")
+        print(found_ch_dir)
+        print("Expected")
+        print(expected_ch_dir)
         return
