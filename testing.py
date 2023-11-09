@@ -201,6 +201,8 @@ class TestQuantitativeResults(unittest.TestCase):
                             except:
                                 print("Calc-Error")
         "The result is only accurate, if the self.assert() tests are commented out, because failing tests return before the value is return!"
+        print("TESTS")
+        print(test_counter)
         print("FINAL RESULT: (mod)")
         print("Found")
         print(found_mod_dir)
