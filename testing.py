@@ -96,7 +96,7 @@ class TestQuantitativeResults(unittest.TestCase):
         found_mod_dir = [0] * 20
         expected_ch_dir = [0] * 20
         found_ch_dir = [0] * 20
-        test_counter = 0
+        test_counter = [0] * 20
 
         for row in range(2, data.max_row):
             print("ROW -----------------------------------")
@@ -155,9 +155,9 @@ class TestQuantitativeResults(unittest.TestCase):
                         if directory is not None:
                             print(f"To Directory {directory} the expected {mexp} and found {mfound} are added")
                             try:
-                                test_counter += 1
                                 directory = int(directory)
                                 if 0 < directory < 21:
+                                    test_counter[directory - 1] += 1
                                     found_mod_dir[directory - 1] += mfound
                                     expected_mod_dir[directory - 1] += mexp
                                     found_ch_dir[directory - 1] += chfound
@@ -173,9 +173,9 @@ class TestQuantitativeResults(unittest.TestCase):
                         if directory is not None:
                             print(f"To Directory {directory} the expected {mexp} and found {mfound} are added")
                             try:
-                                test_counter += 1
                                 directory = int(directory)
                                 if 0 < directory < 21:
+                                    test_counter[directory - 1] += 1
                                     found_mod_dir[directory - 1] += mfound
                                     expected_mod_dir[directory - 1] += mexp
                                     found_ch_dir[directory - 1] += chfound
@@ -191,9 +191,9 @@ class TestQuantitativeResults(unittest.TestCase):
                         if directory is not None:
                             print(f"To Directory {directory} the expected {mexp} and found {mfound} are added")
                             try:
-                                test_counter += 1
                                 directory = int(directory)
                                 if 0 < directory < 21:
+                                    test_counter[directory - 1] += 1
                                     found_mod_dir[directory - 1] += mfound
                                     expected_mod_dir[directory - 1] += mexp
                                     found_ch_dir[directory - 1] += chfound
