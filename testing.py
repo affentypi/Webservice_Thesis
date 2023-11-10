@@ -71,17 +71,17 @@ class TestQuantitativeResults(unittest.TestCase):
                     overall_found_mods -= len(nlp_result[1])
                     print(f"Test 1: found {len(nlp_result[1])}, expected {expected_ms_changes + expected_cs_changes}")
                     print(len(nlp_result[1]) == expected_ms_changes + expected_cs_changes)
-                    #self.assertEqual(len(nlp_result[1]), expected_ms_changes + expected_cs_changes)  # test 1: amount of changes
+                    self.assertEqual(len(nlp_result[1]), expected_ms_changes + expected_cs_changes)  # test 1: amount of changes
                     print(len(nlp_result[0]) == expected_ms_changes + expected_cs_changes)
-                    #self.assertEqual(len(nlp_result[0]), expected_ms_changes + expected_cs_changes)  # test 1: amount of changes
+                    self.assertEqual(len(nlp_result[0]), expected_ms_changes + expected_cs_changes)  # test 1: amount of changes
                     print(f"Test 2: found Cs {found_cs_changes} expected {expected_cs_changes}; found Ms {found_ms_changes}, expected {expected_ms_changes}")
                     print(found_ms_changes == expected_ms_changes)
-                    #self.assertEqual(found_ms_changes, expected_ms_changes)  # test 2: amount of amendments
+                    self.assertEqual(found_ms_changes, expected_ms_changes)  # test 2: amount of amendments
                     print(found_cs_changes == expected_cs_changes)
-                    #self.assertEqual(found_cs_changes, expected_cs_changes)  # test 2: amount of corridgendi
+                    self.assertEqual(found_cs_changes, expected_cs_changes)  # test 2: amount of corridgendi
                     print(f"Test 3: found {overall_found_mods}, expected {overall_expected_mods}")
                     print(overall_found_mods == overall_expected_mods)
-                    #self.assertEqual(overall_found_mods, overall_expected_mods) # test 3: amount of all modifications
+                    self.assertEqual(overall_found_mods, overall_expected_mods) # test 3: amount of all modifications
                     return overall_found_mods, overall_expected_mods, len(nlp_result[0]), expected_ms_changes + expected_cs_changes
             else:
                 self.assertEqual(0,13)
@@ -89,9 +89,16 @@ class TestQuantitativeResults(unittest.TestCase):
         return 0,0,0,0
 
     def test_file(self):
-        dataframe = openpyxl.load_workbook("./test_data/DataSetWithFullResults.xlsx")
+        dataframe = openpyxl.load_workbook("./test_data/DataSetForTesting.xlsx")
         data = dataframe.active
 
+        """
+        Testing takes quite some time because of the size of the data set.
+        To speed up and reduce storage resource consumption, remove the HTML writing by early returns.
+        Otherwise, the data set can be iterated stepwise thus making the waiting time even lower.
+        """
+
+        # This is used to count the modifications and changes for entire directories.
         expected_mod_dir = [0] * 20
         found_mod_dir = [0] * 20
         expected_ch_dir = [0] * 20
@@ -99,6 +106,7 @@ class TestQuantitativeResults(unittest.TestCase):
         test_counter = [0] * 20
 
         for row in range(2, data.max_row):
+            "Iterate through the rows of the document."
             print("ROW -----------------------------------")
             print(row)
             # [celex, language, celex_link, first_date, first_url, middle_date, middle_url, last_date, last_url, amount_of_consolidated_versions, directory, topic, name, comment, ...
@@ -137,10 +145,11 @@ class TestQuantitativeResults(unittest.TestCase):
             result_first_last = row_entries[16][row].value.__str__()
             print("result_first_last: " + result_first_last)
             result_middle_last = row_entries[17][row].value.__str__()
-            # print("result_middle_last: " + result_middle_last)
+            print("result_middle_last: " + result_middle_last)
             result_first_middle = row_entries[18][row].value.__str__()
-            # print("result_first_middle: " + result_first_middle)
+            print("result_first_middle: " + result_first_middle)
 
+            "For stepwise testing:"
             if row < 0: # 0, 101, 201
                 continue
             elif row > 300: # 100, 200, 300
@@ -152,7 +161,7 @@ class TestQuantitativeResults(unittest.TestCase):
                     with self.subTest(celex + first_date + last_date + result_first_last):
                         mfound, mexp, chfound, chexp = self.test_old_new(first_url, last_url, result_first_last)
                         "To add up the modifications (comment out the assertion test!):"
-                        if directory is not None:
+                        '''if directory is not None:
                             print(f"To Directory {directory} the expected {mexp} and found {mfound} are added")
                             try:
                                 directory = int(directory)
@@ -163,45 +172,21 @@ class TestQuantitativeResults(unittest.TestCase):
                                     found_ch_dir[directory - 1] += chfound
                                     expected_ch_dir[directory - 1] += chexp
                             except:
-                                print("Calc-Error")
+                                print("Calc-Error")'''
                 if (middle_url is not None and "NULL" not in middle_url and "Not" not in middle_url
                         and last_url is not None and "NULL" not in last_url and "Not" not in last_url
                         and result_middle_last is not None and "OVERFLOW" not in result_middle_last and "NULL" not in result_middle_last):
                     with self.subTest(celex + middle_date + last_date + result_middle_last):
                         mfound, mexp, chfound, chexp = self.test_old_new(middle_url, last_url, result_middle_last)
-                        "To add up the modifications (comment out the assertion test!):"
-                        if directory is not None:
-                            print(f"To Directory {directory} the expected {mexp} and found {mfound} are added")
-                            try:
-                                directory = int(directory)
-                                if 0 < directory < 21:
-                                    test_counter[directory - 1] += 1
-                                    found_mod_dir[directory - 1] += mfound
-                                    expected_mod_dir[directory - 1] += mexp
-                                    found_ch_dir[directory - 1] += chfound
-                                    expected_ch_dir[directory - 1] += chexp
-                            except:
-                                print("Calc-Error")
+                        "Add the calculus part here!"
                 if (first_url is not None and "NULL" not in first_url and "Not" not in first_url
                     and middle_url is not None and "NULL" not in middle_url and "Not" not in middle_url
                     and result_first_middle is not None and "OVERFLOW" not in result_first_middle and "NULL" not in result_first_middle):
                     with self.subTest(celex + first_date + middle_date + result_first_middle):
                         mfound, mexp, chfound, chexp = self.test_old_new(first_url, middle_url, result_first_middle)
-                        "To add up the modifications (comment out the assertion test!):"
-                        if directory is not None:
-                            print(f"To Directory {directory} the expected {mexp} and found {mfound} are added")
-                            try:
-                                directory = int(directory)
-                                if 0 < directory < 21:
-                                    test_counter[directory - 1] += 1
-                                    found_mod_dir[directory - 1] += mfound
-                                    expected_mod_dir[directory - 1] += mexp
-                                    found_ch_dir[directory - 1] += chfound
-                                    expected_ch_dir[directory - 1] += chexp
-                            except:
-                                print("Calc-Error")
+                        "Add the calculus part here!"
         "The result is only accurate, if the self.assert() tests are commented out, because failing tests return before the value is return!"
-        print("TESTS")
+        '''print("TESTS")
         print(test_counter)
         print("FINAL RESULT: (mod)")
         print("Found")
@@ -212,5 +197,5 @@ class TestQuantitativeResults(unittest.TestCase):
         print("Found")
         print(found_ch_dir)
         print("Expected")
-        print(expected_ch_dir)
+        print(expected_ch_dir)'''
         return

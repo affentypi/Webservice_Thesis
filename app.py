@@ -28,12 +28,13 @@ def twoLinks():
             print(radio) #ToDo Just on? acc = false, fast is true
         except Exception as e:
             return render_template("error.html", exception= e)
-        #run  todo
-        celex_old, doc_old = html.pars_html(old_url)
-        celex_new, doc_new = html.pars_html(new_url)
-
-        run.process_nlp(radio + celex_old + celex_new, html.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new), radio == "fast")
-        return render_template("x_output_run"+ radio + celex_old + celex_new +".html", celex_new= celex_new, celex_old= celex_old)
+        try: # run the algorithm
+            celex_old, doc_old = html.pars_html(old_url)
+            celex_new, doc_new = html.pars_html(new_url)
+            run.process_nlp(radio + celex_old + celex_new, html.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new), radio == "fast")
+            return render_template("x_output_run"+ radio + celex_old + celex_new +".html", celex_new= celex_new, celex_old= celex_old)
+        except Exception as e:
+            return render_template("error.html", exception=e)
     else:  # HTTP GET
         return render_template("twoLinks.html")
 
@@ -46,11 +47,13 @@ def oneLink():
             radio = request.form['btnradio']
         except Exception as e:
             return render_template("error.html", exception=e)
-
-        celex_old, doc_old = html.pars_html(url)
-        celex_new, doc_new = html.find_newest(url)
-        run.process_nlp(radio + celex_old + celex_new, html.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new), radio == "fast")
-        return render_template("x_output_run"+ radio + celex_old + celex_new +".html", celex_new=celex_new, celex_old=celex_old)
+        try: # run the algorithm
+            celex_old, doc_old = html.pars_html(url)
+            celex_new, doc_new = html.find_newest(url)
+            run.process_nlp(radio + celex_old + celex_new, html.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new), radio == "fast")
+            return render_template("x_output_run"+ radio + celex_old + celex_new +".html", celex_new=celex_new, celex_old=celex_old)
+        except Exception as e:
+            return render_template("error.html", exception= e)
     else:  # HTTP GET
         return render_template("oneLink.html")
 
@@ -64,15 +67,16 @@ def celex():
         except Exception as e:
             return render_template("error.html", exception=e)
 
-        url = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:" + celex_input
-        celex_old, doc_old = html.pars_html(url)
-        if celex_input != celex_old:
-            print("ERROR")
-        celex_new, doc_new = html.find_newest(url)
-        run.process_nlp(radio + celex_old + celex_new,
-                        html.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new), radio == "fast")
-        return render_template("x_output_run" + radio + celex_old + celex_new + ".html", celex_new=celex_new,
-                               celex_old=celex_old)
+        try: # run the algorithm
+            url = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:" + celex_input
+            celex_old, doc_old = html.pars_html(url)
+            if celex_input != celex_old:
+                return render_template("error.html", exception="Error in finding the old and new document! I am sorry!")
+            celex_new, doc_new = html.find_newest(url)
+            run.process_nlp(radio + celex_old + celex_new, html.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new), radio == "fast")
+            return render_template("x_output_run" + radio + celex_old + celex_new + ".html", celex_new=celex_new, celex_old=celex_old)
+        except Exception as e:
+            return render_template("error.html", exception=e)
     else:  # HTTP GET
         return render_template("celex.html")
 
@@ -81,20 +85,10 @@ def celex():
 def about():
     return render_template("about.html")
 
-
-@app.route("/hello/")
-@app.route("/hello/<name>")
-def hello_there(name=None):
-    return render_template(
-        "hello_there.html",
-        name=name,
-        date=datetime.now()
-    )
     # Filter the name argument to letters only using regular expressions. URL arguments
     # can contain arbitrary text, so we restrict to safe characters only.
-    # match_object = re.match("[a-zA-Z]+", name) TODO
+    # match_object = re.match("[a-zA-Z]+", name) TODO safety and securtiy
 
-
-@app.route("/api/data")
+'''@app.route("/api/data")
 def get_data():
-    return app.send_static_file("data.json")
+    return app.send_static_file("data.json")'''
