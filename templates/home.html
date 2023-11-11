@@ -3,14 +3,15 @@
     Hello There
 {% endblock %}
 {% block content %}
-    <p>TODO refence TUM ?</p>
     <div class="card">
         <div class="card-body">
-            <div class="text-black-50"> Grey Text</div>
-            <b>Big Text</b>
+            This is the web service prototype for extracting information from changes in legal document from <a href="https://eur-lex.europa.eu/">EURLex</a>.
+            The implementation is explained in the according thesis <strong>"Automated Change Identification and Classification for Legal Documents and Their Amendments"</strong>.
             <br>
-            <s>Striked Text</s>
+            Written at the <strong>Chair of Information Systems and Business Process Management (i17) </strong> at <strong> TUM School of Computation, Information and Technology </strong>.
             <br>
+            <br>
+            The usage is explained <a href="{{ url_for('explanation') }}">here</a>.
         </div>
     </div>
 

@@ -15,7 +15,7 @@ def add_labels(param_doc: spacy.tokens.doc.Doc): # More Entities todo obsolete?
     """
     spans = []
     count = 0
-    for token in param_doc: # todo it does not work / implement in patterns
+    for token in param_doc:
         if re.match('\d{4}/\d{2,4}|\d{2,4}/\d{4}', token.text):
             spans.append(Span(param_doc, count, count + 1, label="LAW"))
         if re.match("Corrigendum|CORRIGENDUM|C\d+$", token.text):

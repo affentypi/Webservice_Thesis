@@ -47,7 +47,7 @@ class TestQuantitativeResults(unittest.TestCase):
                 celex_new, doc_new = html_processing.pars_html(url_new)
                 html_result = html_processing.find_changes_and_make_diff_of_surrounding_text(doc_old, doc_new)
                 nlp_result = nlp_processing.process_nlp("testfast" + celex_old + celex_new, html_result, True)  # fast test
-                #nlp_result = nlp_processing.process_nlp("testaccurate" + celex_old + celex_new, html_result,False)  # accurate test todo
+                #nlp_result = nlp_processing.process_nlp("testaccurate" + celex_old + celex_new, html_result,False)  # accurate test
 
                 if "repealed" in result:
                     print(nlp_result is None)

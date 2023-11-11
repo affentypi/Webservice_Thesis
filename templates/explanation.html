@@ -3,5 +3,38 @@
 Explanation
 {% endblock %}
 {% block content %}
-<p>Nothing here yet. TODO</p>
+<div class="card">
+        <div class="card-body">
+            This is web service takes legal documents from <a href="https://eur-lex.europa.eu/">EURLex</a>, compares them and outputs the differences. The result will consist of
+            Changes, which when opened display all their modifications. Each Change has Meta-Data, a set of information about which amending act
+            produced the modification of this change and when. Each modification names an assumed type of modification (based on the diff):
+            <strong>(Inserted) Addition</strong>, <strong>(Inserted) Deletion</strong> or <strong>(Inserted) Replacement</strong>. This may vary from the actual type of modification. Furthermore, the
+            rough position this modification is in, so with the provided links on the top, each modification can be double-checked. The
+            new content is output with highlighted entities. The categories are explained below. Under "the corresponding passage", the context of the modification as
+            well as the old (red) and new (green) text. The web service provides the possibility to either enter both links (old and new) or only the old document
+            by either a link or the CELEX number from <a href="https://eur-lex.europa.eu/">EURLex</a>.
+            <br>
+            <br>
+            Use:
+            <br>
+            <p><a href="{{ url_for('twoLinks') }}">Two links</a></p>
+            <p><a href="{{ url_for('oneLink') }}">One (old) Link </a></p>
+            <p><a href="{{ url_for('celex') }}">CELEX Number (of old document)</a></p>
+        </div>
+    </div>
+    <br>
+<div class="card">
+        <div class="card-body">
+            <p>The highlighted and labeled entities are:</p>
+            <strong>LAW: </strong> Legal References,
+            <strong>ORG: </strong> Organizations,
+            <strong>GPE: </strong> Countries,
+            <strong>NORP: </strong> Nationalities,
+            <strong>LOC: </strong> Locations,
+            <strong>DATE,</strong>
+            <strong>QUANTITY,</strong>
+            <strong>MONEY,</strong>
+            <strong>LANGUAGE.</strong>
+        </div>
+    </div>
 {% endblock %}

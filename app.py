@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import html_processing as html
 import nlp_processing as run
 
@@ -9,23 +7,23 @@ app = Flask(__name__)
 
 
 @app.route("/")
+@app.route("/home/")
 def home():
     return render_template("home.html")
-
 
 @app.route("/explanation/")
 def explanation():
     return render_template("explanation.html")
 
-
 @app.route("/twoLinks/", methods=['POST', 'GET'])
 def twoLinks():
+    "Enter old and new document."
     if request.method == 'POST':
-        try:
+        try: # fetch input
             old_url = request.form['old']
             new_url = request.form['new']
             radio = request.form['btnradio']
-            print(radio) #ToDo Just on? acc = false, fast is true
+            print(radio)
         except Exception as e:
             return render_template("error.html", exception= e)
         try: # run the algorithm
@@ -38,13 +36,14 @@ def twoLinks():
     else:  # HTTP GET
         return render_template("twoLinks.html")
 
-
 @app.route("/oneLink/", methods=['POST', 'GET'])
 def oneLink():
+    "Only enter the link to the old document."
     if request.method == 'POST':
-        try:
+        try: # fetch input
             url = request.form['doc']
             radio = request.form['btnradio']
+            print(radio)
         except Exception as e:
             return render_template("error.html", exception=e)
         try: # run the algorithm
@@ -57,16 +56,16 @@ def oneLink():
     else:  # HTTP GET
         return render_template("oneLink.html")
 
-
 @app.route("/celex/", methods=['POST', 'GET'])
 def celex():
+    "Only enter the CELEX number of the old document."
     if request.method == 'POST':
-        try:
+        try: # fetch input
             celex_input = request.form['celex']
             radio = request.form['btnradio']
+            print(radio)
         except Exception as e:
             return render_template("error.html", exception=e)
-
         try: # run the algorithm
             url = "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:" + celex_input
             celex_old, doc_old = html.pars_html(url)
@@ -80,14 +79,11 @@ def celex():
     else:  # HTTP GET
         return render_template("celex.html")
 
-
 @app.route("/about/")
 def about():
     return render_template("about.html")
 
-    # Filter the name argument to letters only using regular expressions. URL arguments
-    # can contain arbitrary text, so we restrict to safe characters only.
-    # match_object = re.match("[a-zA-Z]+", name) TODO safety and securtiy
+# match_object = re.match("[a-zA-Z]+", name) TODO safety and securtiy
 
 '''@app.route("/api/data")
 def get_data():
